@@ -1,0 +1,2 @@
+import{NextResponse}from'next/server';import{requireAdmin}from'../../../../lib/auth';import{readdir}from'fs/promises';import path from'path';
+export async function GET(){try{await requireAdmin();const dir=path.join(process.cwd(),'public','uploads');let files:string[]=[];try{files=await readdir(dir)}catch{}return NextResponse.json({images:files.filter(x=>/\.(jpg|jpeg|png|webp)$/i.test(x)).map(x=>`/uploads/${x}`)})}catch{return NextResponse.json({error:'Acesso administrativo necessário.'},{status:403})}}

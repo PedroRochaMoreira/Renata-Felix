@@ -1,0 +1,3 @@
+'use client';
+import{useEffect,useState}from'react';import{Product,products}from'./data';import{ProductCard}from'./components';
+export default function FeaturedIcons(){const[items,setItems]=useState<Product[]>(products.filter(p=>!p.isNew).slice(0,4));useEffect(()=>{Promise.all([fetch('/api/catalog').then(r=>r.json()),fetch('/api/admin/featured').then(r=>r.json())]).then(([catalog,featured])=>{const selected=(featured.ids||[]).map((id:string)=>catalog.products.find((p:Product)=>p.id===id)).filter(Boolean);setItems(selected.length?selected:catalog.products.filter((p:Product)=>!p.isNew).slice(0,4))}).catch(()=>undefined)},[]);return <div className="grid">{items.map(p=><ProductCard product={p} key={p.id}/>)}</div>}

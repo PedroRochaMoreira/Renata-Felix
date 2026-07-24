@@ -1,0 +1,4 @@
+import { NextResponse } from 'next/server';
+import { createUser, makeSession, publicUser } from '../../../../lib/store';
+
+export async function POST(req: Request) { try { const { name, email, password } = await req.json(); if (!name || !email || !password) return NextResponse.json({ error: 'Preencha todos os dados.' }, { status: 400 }); const user = createUser(String(name), String(email), String(password)); const res = NextResponse.json({ user: publicUser(user) }); res.cookies.set('rf_session', makeSession(user.id), { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 24 * 14 }); return res; } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Não foi possível criar a conta.' }, { status: 400 }); } }

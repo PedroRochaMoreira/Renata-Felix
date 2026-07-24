@@ -1,0 +1,5 @@
+import Image from 'next/image';
+import { MapPin } from 'lucide-react';
+import { Footer, Header } from '../components';
+
+export default function Lojas() { return <><Header /><main className="storesPage"><div className="pageHeading"><span className="eyebrow">Visite-nos</span><h1 className="serif">A nossa casa em São Paulo.</h1><p>Um espaço pensado para experimentar as peças com calma e descobrir novas possibilidades.</p></div><div className="storeExperience"><Image src="/brand/fachada-renata-felix.png" width={1290} height={1086} alt="Fachada da loja Renata Felix" /><div><span className="eyebrow">Renata Felix Store</span><p>Uma experiência pensada em cada detalhe.</p><p>Rua Oscar Freire, 920<br />Jardins · São Paulo — SP<br />CEP 01426-002</p><a className="button dark" target="_blank" rel="noreferrer" href="https://www.google.com/maps/search/?api=1&query=Rua+Oscar+Freire+920,+S%C3%A3o+Paulo"><MapPin size={15} /> Abrir no Google Maps</a></div></div><iframe className="map" title="Mapa Renata Felix" src="https://www.google.com/maps?q=Rua+Oscar+Freire+920,+S%C3%A3o+Paulo&output=embed" loading="lazy" /></main><Footer /></>; }

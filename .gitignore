@@ -1,0 +1,10 @@
+node_modules
+.next
+.next.before-move
+.next-verification
+.env
+data/*.json
+*.log
+coverage
+.DS_Store
+*.tsbuildinfo
