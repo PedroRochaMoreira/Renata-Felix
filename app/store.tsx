@@ -28,6 +28,12 @@ function readLocal<T>(key: string, fallback: T) {
   }
 }
 
+function persistFavorites(next: string[]) {
+  void fetch('/api/account/favorites', {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ favorites: next }),
+  }).catch(() => undefined);
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -39,6 +45,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setFavorites(readLocal<string[]>('rf-favorites', []));
     setShipping(readLocal<ShippingOption | null>('rf-shipping', null));
     setHydrated(true);
+    fetch('/api/account/favorites')
+      .then(response => response.ok ? response.json() : null)
+      .then(data => { if (Array.isArray(data?.favorites)) setFavorites(data.favorites); })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => { if (hydrated) localStorage.setItem('rf-cart', JSON.stringify(cart)); }, [cart, hydrated]);
@@ -59,17 +69,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return current.map(item => item.id === id && item.size === size ? { ...item, qty: Math.min(maxQuantity, Math.floor(quantity)) } : item);
   });
 
+  const toggleFavorite = (id: string) => setFavorites(current => {
+    const next = current.includes(id) ? current.filter(item => item !== id) : [...current, id];
+    persistFavorites(next);
+    return next;
+  });
+
   return <Context.Provider value={{
-    cart,
-    favorites,
-    shipping,
-    hydrated,
-    add,
+    cart, favorites, shipping, hydrated, add,
     remove: (id, size) => setCart(current => current.filter(item => item.id !== id || item.size !== size)),
     setQuantity,
     clearCart: () => { setCart([]); setShipping(null); },
     setShipping,
-    toggleFavorite: id => setFavorites(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]),
+    toggleFavorite,
   }}>{children}</Context.Provider>;
 }
 

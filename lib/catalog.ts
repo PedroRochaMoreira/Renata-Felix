@@ -7,13 +7,24 @@ function validImages(images: unknown, fallback: string) {
   return valid.length ? [...new Set(valid)] : [fallback];
 }
 
+/**
+ * A vitrine pública continua disponível com a curadoria base se o banco tiver
+ * uma indisponibilidade transitória. Operações administrativas continuam a
+ * falhar de modo explícito para não gravar dados em armazenamento efêmero.
+ */
 export async function getCatalog(): Promise<Product[]> {
-  const [stock, edited, customProducts] = await Promise.all([inventory(), overrides(), listProducts()]);
-  return [...customProducts, ...products].filter(product => !stock[product.id]?.deleted).map(product => {
-    const merged = { ...product, ...edited[product.id] } as Product;
-    const images = validImages(merged.images, merged.img);
-    return { ...merged, img: images[0], images, stock: stock[product.id]?.stock ?? merged.stock ?? 10 };
-  });
+  try {
+    const [stock, edited, customProducts] = await Promise.all([inventory(), overrides(), listProducts()]);
+    return [...customProducts, ...products].filter(product => !stock[product.id]?.deleted).map(product => {
+      const merged = { ...product, ...edited[product.id] } as Product;
+      const images = validImages(merged.images, merged.img);
+      return { ...merged, img: images[0], images, stock: stock[product.id]?.stock ?? merged.stock ?? 10 };
+    });
+  } catch {
+    return products.map(product => ({ ...product, images: validImages(product.images, product.img), stock: product.stock ?? 10 }));
+  }
 }
 
-export async function findCatalogProduct(id: string) { return (await getCatalog()).find(product => product.id === id); }
+export async function findCatalogProduct(id: string) {
+  return (await getCatalog()).find(product => product.id === id);
+}

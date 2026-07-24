@@ -2,6 +2,7 @@ node_modules
 .next
 .next.before-move
 .next-verification
+.next-verification-final
 .env
 data/*.json
 *.log
