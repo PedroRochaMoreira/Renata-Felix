@@ -7,19 +7,13 @@ function validImages(images: unknown, fallback: string) {
   return valid.length ? [...new Set(valid)] : [fallback];
 }
 
-export function getCatalog(): Product[] {
-  const stock = inventory();
-  const edited = overrides();
-
-  return [...listProducts(), ...products]
-    .filter(product => !stock[product.id]?.deleted)
-    .map(product => {
-      const merged = { ...product, ...edited[product.id] } as Product;
-      const images = validImages(merged.images, merged.img);
-      return { ...merged, img: images[0], images, stock: stock[product.id]?.stock ?? merged.stock ?? 10 };
-    });
+export async function getCatalog(): Promise<Product[]> {
+  const [stock, edited, customProducts] = await Promise.all([inventory(), overrides(), listProducts()]);
+  return [...customProducts, ...products].filter(product => !stock[product.id]?.deleted).map(product => {
+    const merged = { ...product, ...edited[product.id] } as Product;
+    const images = validImages(merged.images, merged.img);
+    return { ...merged, img: images[0], images, stock: stock[product.id]?.stock ?? merged.stock ?? 10 };
+  });
 }
 
-export function findCatalogProduct(id: string) {
-  return getCatalog().find(product => product.id === id);
-}
+export async function findCatalogProduct(id: string) { return (await getCatalog()).find(product => product.id === id); }

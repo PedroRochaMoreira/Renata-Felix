@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     if (!Array.isArray(body.items) || !body.items.length) return NextResponse.json({ error: 'A sacola está vazia.' }, { status: 400 });
     if (!body.shipping || body.shipping.id === undefined || !body.shipping.postalCode) return NextResponse.json({ error: 'Escolha uma modalidade de entrega antes de pagar.' }, { status: 400 });
 
-    const catalog = getCatalog();
+    const catalog = await getCatalog();
     const merged = new Map<string, CartItem>();
     for (const item of body.items) {
       if (!item || typeof item.id !== 'string' || typeof item.size !== 'string' || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1) return NextResponse.json({ error: 'Há uma quantidade inválida na sacola.' }, { status: 400 });
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     if (!selectedShipping) return NextResponse.json({ error: 'A modalidade de entrega selecionada expirou. Calcule o frete novamente.' }, { status: 400 });
     const shipping = { name: selectedShipping.name, company: selectedShipping.company, price: selectedShipping.price, deliveryTime: selectedShipping.deliveryTime };
     const total = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) + shipping.price;
-    const order = createOrder(user.id, { items, shipping, total });
+    const order = await createOrder(user.id, { items, shipping, total });
     const base = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');
     const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     });
     const data = await response.json();
     if (!response.ok) return NextResponse.json({ error: data.message || 'Não foi possível iniciar o pagamento.' }, { status: 400 });
-    setOrderPreference(order.id, data.id);
+    await setOrderPreference(order.id, data.id);
     return NextResponse.json({ checkoutUrl: data.init_point, orderId: order.id });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Não foi possível conectar ao Mercado Pago.';

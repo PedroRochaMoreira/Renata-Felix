@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     await requireAdmin();
     const form = await req.formData();
     const product = productValues(form, await saveUploads(form));
-    return NextResponse.json({ product: addProduct(product) }, { status: 201 });
+    return NextResponse.json({ product: await addProduct(product) }, { status: 201 });
   } catch (error) {
     return errorResponse(error, 'Não foi possível publicar a peça.');
   }
@@ -72,15 +72,15 @@ export async function PATCH(req: Request) {
     await requireAdmin();
     const form = await req.formData();
     const id = String(form.get('id') || '');
-    const current = findCatalogProduct(id);
+    const current = await findCatalogProduct(id);
     if (!current) throw new Error('Produto não encontrado.');
     let existing: unknown = [];
     try { existing = JSON.parse(String(form.get('existingImages') || '[]')); } catch { throw new Error('As fotos da peça não puderam ser lidas.'); }
     const persistedImages = Array.isArray(existing) ? existing.filter((image): image is string => typeof image === 'string' && image.length > 0) : [];
     const values = productValues(form, [...new Set([...persistedImages, ...(await saveUploads(form))])]);
-    updateProduct(id, values);
-    setStock(id, values.stock);
-    return NextResponse.json({ product: findCatalogProduct(id) });
+    await updateProduct(id, values);
+    await setStock(id, values.stock);
+    return NextResponse.json({ product: await findCatalogProduct(id) });
   } catch (error) {
     return errorResponse(error, 'Não foi possível atualizar a peça.');
   }

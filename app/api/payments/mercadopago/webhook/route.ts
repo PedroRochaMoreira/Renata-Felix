@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     const payment = await response.json();
     if (!response.ok || !payment.external_reference) return NextResponse.json({ ok: true });
     const status = payment.status === 'approved' ? 'APPROVED' : payment.status === 'rejected' ? 'REJECTED' : payment.status === 'cancelled' ? 'CANCELLED' : 'PENDING';
-    setOrderStatus(String(payment.external_reference), status, String(payment.id));
+    await setOrderStatus(String(payment.external_reference), status, String(payment.id));
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ ok: true });

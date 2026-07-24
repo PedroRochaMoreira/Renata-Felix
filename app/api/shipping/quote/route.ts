@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   try {
     const { postalCode, items } = await req.json() as { postalCode?: string; items?: { id: string; quantity: number }[] };
     if (!Array.isArray(items) || !items.length) return NextResponse.json({ error: 'A sacola está vazia.' }, { status: 400 });
-    const catalog = getCatalog();
+    const catalog = await getCatalog();
     const secureItems = items.map(item => {
       const product = catalog.find(entry => entry.id === item.id);
       if (!product || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1) throw new Error('Há uma peça inválida na sua sacola.');

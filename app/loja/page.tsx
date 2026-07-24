@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function Loja({ searchParams }: { searchParams: Promise<{ categoria?: string; filtro?: string }> }) {
   const search = await searchParams;
-  const catalog = getCatalog();
+  const catalog = await getCatalog();
   const categories = Array.from(new Set(catalog.map(product => product.cat))).sort();
   const items = search.filtro === 'novidades' ? catalog.filter(product => product.isNew) : search.categoria ? catalog.filter(product => product.cat === search.categoria) : catalog;
   const title = search.filtro === 'novidades' ? 'Novidades' : search.categoria || 'Todas as peças';
