@@ -13,17 +13,29 @@ type Db = { users: User[]; sessions: Session[]; products: StoredProduct[]; featu
 const file = path.join(process.cwd(), 'data', 'renata-felix.json');
 const empty = (): Db => ({ users: [], sessions: [], products: [], featuredIds: [], inventory: {}, overrides: {}, orders: [], subscribers: [], messages: [] });
 
+let volatileDb: Db | null = null;
 function read(): Db {
-  if (!existsSync(file)) {
-    mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, JSON.stringify(empty(), null, 2));
-    return empty();
+  if (volatileDb) return volatileDb;
+  try {
+    if (!existsSync(file)) {
+      if (process.env.VERCEL) return (volatileDb = empty());
+      mkdirSync(path.dirname(file), { recursive: true });
+      const db = empty();
+      writeFileSync(file, JSON.stringify(db, null, 2));
+      return db;
+    }
+    const db = JSON.parse(readFileSync(file, 'utf8')) as Partial<Db>;
+    return (volatileDb = { users: db.users || [], sessions: db.sessions || [], products: db.products || [], featuredIds: db.featuredIds || [], inventory: db.inventory || {}, overrides: db.overrides || {}, orders: db.orders || [], subscribers: db.subscribers || [], messages: db.messages || [] });
+  } catch {
+    return (volatileDb = empty());
   }
-  const db = JSON.parse(readFileSync(file, 'utf8')) as Partial<Db>;
-  return { users: db.users || [], sessions: db.sessions || [], products: db.products || [], featuredIds: db.featuredIds || [], inventory: db.inventory || {}, overrides: db.overrides || {}, orders: db.orders || [], subscribers: db.subscribers || [], messages: db.messages || [] };
 }
 
-function save(db: Db) { writeFileSync(file, JSON.stringify(db, null, 2)); }
+function save(db: Db) {
+  volatileDb = db;
+  if (process.env.VERCEL) return;
+  try { writeFileSync(file, JSON.stringify(db, null, 2)); } catch { /* mantém o estado em memória quando o disco não estiver disponível */ }
+}
 function emailIsValid(email: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email); }
 export function publicUser(user: User): PublicUser { const { passwordHash: _passwordHash, ...safe } = user; return safe; }
 
