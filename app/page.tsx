@@ -19,7 +19,7 @@ export default function Home() {
       <Image priority src="https://images.unsplash.com/photo-1581044777550-4cfa60707c03?auto=format&fit=crop&w=2200&q=90" alt="Mulher vestindo peça da curadoria Renata Felix" fill sizes="100vw" />
       <div className="heroVeil" />
       <div className="heroCopy"><span className="eyebrow heroEyebrow"><Sparkles size={12} /> Curadoria Renata Felix</span><h1 className="serif">Peças que deixam<br /><em>a sua presença falar.</em></h1><p>Moda contemporânea escolhida para acompanhar seus movimentos, todos os dias.</p><div className="heroActions"><Link href="/loja" className="button light">Explorar a loja <ArrowRight size={15} /></Link><Link href="/sobre" className="heroTextLink">Conhecer a marca <ArrowDownRight size={15} /></Link></div></div>
-      <div className="heroFootnote"><span>São Paulo · Brasil</span><span>Seleção feita com intenção</span></div>
+      <div className="heroFootnote"><span>Luziânia · GO · Brasil</span><span>Seleção feita com intenção</span></div>
     </section>
 
     <section className="manifesto"><div className="manifestoMark">RF</div><div><span className="eyebrow">A nossa seleção</span><h2 className="serif">Uma loja para mulheres que escolhem <em>menos, e melhor.</em></h2></div><p>Em vez de excessos, reunimos formas que atravessam momentos: vestidos, alfaiataria e essenciais escolhidos por caimento, conforto e personalidade.</p></section>
@@ -30,7 +30,7 @@ export default function Home() {
 
     <section className="section iconSection"><div className="sectionHead"><div><span className="eyebrow">A assinatura da loja</span><h2 className="serif">Ícones Renata Felix</h2></div><Link href="/loja" className="textLink">Ver a loja <ArrowRight size={13} /></Link></div><FeaturedIcons /></section>
 
-    <section className="storeBanner"><div><span className="eyebrow">Visite-nos</span><h2 className="serif">Uma experiência para ver, tocar e se reconhecer.</h2><p>Rua Oscar Freire, 920 · Jardins · São Paulo</p><Link href="/lojas" className="textLink">Como chegar <MapPin size={13} /></Link></div><Image src="/brand/fachada-renata-felix.png" width={1290} height={1086} alt="Fachada da loja Renata Felix" /></section>
+    <section className="storeBanner"><div><span className="eyebrow">Visite-nos</span><h2 className="serif">Uma experiência para ver, tocar e se reconhecer.</h2><p>R. José Alencar, Qd. 77 · Lt. 12 · Luziânia — GO</p><Link href="/lojas" className="textLink">Como chegar <MapPin size={13} /></Link></div><Image src="/brand/fachada-renata-felix.png" width={1290} height={1086} alt="Fachada da loja Renata Felix" /></section>
 
     <Newsletter />
   </main><Footer /></>;
