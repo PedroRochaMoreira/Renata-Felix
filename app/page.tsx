@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowDownRight, ArrowRight, MapPin, Sparkles } from 'lucide-react';
+import { ArrowDownRight, ArrowRight, Clock3, MapPin, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import FeaturedIcons from './featured-icons';
 import { Footer, Header, Newsletter, ProductCard } from './components';
@@ -30,7 +30,7 @@ export default function Home() {
 
     <section className="section iconSection"><div className="sectionHead"><div><span className="eyebrow">A assinatura da loja</span><h2 className="serif">Ícones Renata Felix</h2></div><Link href="/loja" className="textLink">Ver a loja <ArrowRight size={13} /></Link></div><FeaturedIcons /></section>
 
-    <section className="storeBanner"><div><span className="eyebrow">Visite-nos</span><h2 className="serif">Uma experiência para ver, tocar e se reconhecer.</h2><p>R. José Alencar, Qd. 77 · Lt. 12 · Luziânia — GO</p><Link href="/lojas" className="textLink">Como chegar <MapPin size={13} /></Link></div><Image src="/brand/fachada-renata-felix.png" width={1290} height={1086} alt="Fachada da loja Renata Felix" /></section>
+    <section className="storeBanner"><div><span className="eyebrow">Visite-nos</span><h2 className="serif">Uma experiência para ver, tocar e se reconhecer.</h2><p>R. José Alencar, Qd. 77 · Lt. 12 · Luziânia — GO</p><div className="storeHours"><Clock3 size={18} /><div><span>Horário de funcionamento</span><strong>Segunda a sexta · 9h às 18h</strong></div></div><Link href="/lojas" className="textLink">Como chegar <MapPin size={13} /></Link></div><Image src="/brand/fachada-renata-felix.png" width={1290} height={1086} alt="Fachada da loja Renata Felix" /></section>
 
     <Newsletter />
   </main><Footer /></>;

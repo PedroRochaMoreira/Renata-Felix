@@ -43,7 +43,7 @@ export function Header() {
 export function Footer() {
   return <footer className="footer">
     <div className="footerTop">
-      <div className="footerBrand"><Link href="/" className="brand brandWithMark"><Image src="/brand/logo-renata-felix.png" alt="" width={38} height={38} /><span>Renata Felix</span></Link><p>Uma curadoria de peças para acompanhar a sua história com presença, leveza e intenção.</p><a className="socialLink" href="https://www.instagram.com/renatafelixstore/" target="_blank" rel="noreferrer"><Instagram size={16} /> @renatafelixstore</a></div>
+      <div className="footerBrand"><Link href="/" className="brand brandWithMark footerBrandLink"><Image src="/brand/logo-renata-felix.png" alt="" width={38} height={38} /><span>Renata Felix</span></Link><p>Uma curadoria de peças para acompanhar a sua história com presença, leveza e intenção.</p><a className="socialLink" href="https://www.instagram.com/renatafelixstore/" target="_blank" rel="noreferrer"><Instagram size={16} /> @renatafelixstore</a></div>
       <div><h4>Institucional</h4><Link href="/sobre">A marca</Link><Link href="/lojas">Nossa loja</Link><Link href="/contato">Contato</Link></div>
       <div><h4>Atendimento</h4><Link href="/trocas#entrega">Entrega e prazos</Link><Link href="/trocas">Trocas e devoluções</Link><Link href="/contato">Perguntas frequentes</Link></div>
       <div><h4>Fale conosco</h4><p>Seg. a sex. · 9h às 18h</p><a href="https://www.instagram.com/renatafelixstore/" target="_blank" rel="noreferrer">@renatafelixstore</a><a href="tel:+5561994230194">(61) 99423-0194</a></div>
