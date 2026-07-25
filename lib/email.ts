@@ -6,7 +6,7 @@ type OrderEmailDetails = {
   id: string;
   status: OrderEmailStatus;
   total: number;
-  items?: { name: string; size: string; quantity: number }[];
+  items?: { name: string; size: string; color?: string; quantity: number }[];
   shipping?: { name: string; company: string; price: number; deliveryTime?: number };
 };
 const from = process.env.EMAIL_FROM;
@@ -39,8 +39,8 @@ export async function sendOrderStatusEmail(input: { to: string; name?: string; o
   const copy = statusCopy(input.order.status);
   const customerName = input.name?.trim() || 'cliente';
   const accountUrl = `${input.baseUrl.replace(/\/$/, '')}/conta/pedidos`;
-  const lines = (input.order.items || []).map(item => `${item.name} · ${item.size} × ${item.quantity}`).join('\n');
-  const safeLines = (input.order.items || []).map(item => `<li>${escapeHtml(item.name)} · ${escapeHtml(item.size)} × ${item.quantity}</li>`).join('');
+  const lines = (input.order.items || []).map(item => `${item.name}${item.color ? ` · ${item.color}` : ''} · ${item.size} × ${item.quantity}`).join('\n');
+  const safeLines = (input.order.items || []).map(item => `<li>${escapeHtml(item.name)}${item.color ? ` · ${escapeHtml(item.color)}` : ''} · ${escapeHtml(item.size)} × ${item.quantity}</li>`).join('');
   const delivery = input.order.shipping ? `${input.order.shipping.company} · ${input.order.shipping.name}` : '';
   const safeDelivery = input.order.shipping ? `${escapeHtml(input.order.shipping.company)} · ${escapeHtml(input.order.shipping.name)}` : '';
 

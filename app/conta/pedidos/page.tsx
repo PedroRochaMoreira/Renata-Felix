@@ -12,7 +12,7 @@ type Order = {
   total: number;
   createdAt: string;
   updatedAt: string;
-  items: { id: string; name: string; size: string; quantity: number; unitPrice?: number }[];
+  items: { id: string; name: string; size: string; color?: string; quantity: number; unitPrice?: number }[];
   shipping?: { name: string; company: string; price: number; deliveryTime?: number };
 };
 
@@ -39,6 +39,6 @@ export default function Pedidos() {
   if (!orders) return <p className="info">Carregando seus pedidos...</p>;
   return <><h2 className="serif">Seus pedidos</h2><p className="info">Acompanhe cada etapa da sua compra por aqui.</p>{error && <p className="notice">{error}</p>}{orders.length ? <div className="ordersList">{orders.map(order => {
     const Icon = icons[order.status];
-    return <article key={order.id}><div><span className="eyebrow">Pedido #{order.id.slice(-6).toUpperCase()}</span><b><CalendarDays size={13} /> {date(order.createdAt)}</b></div><span className={`orderStatus ${order.status.toLowerCase()}`}><Icon size={12} /> {labels[order.status]}</span><p>{order.items.map(item => `${item.name} · ${item.size} × ${item.quantity}`).join(', ')}</p><div className="orderDelivery">{order.shipping ? <><Truck size={14} /><span>{order.shipping.company} · {order.shipping.name}{order.shipping.deliveryTime ? ` · até ${order.shipping.deliveryTime} dias úteis` : ''}</span></> : <span>Entrega será confirmada após o pagamento.</span>}</div><strong>{formatPrice(order.total)}</strong></article>;
+    return <article key={order.id}><div><span className="eyebrow">Pedido #{order.id.slice(-6).toUpperCase()}</span><b><CalendarDays size={13} /> {date(order.createdAt)}</b></div><span className={`orderStatus ${order.status.toLowerCase()}`}><Icon size={12} /> {labels[order.status]}</span><p>{order.items.map(item => `${item.name}${item.color ? ` · ${item.color}` : ''} · ${item.size} × ${item.quantity}`).join(', ')}</p><div className="orderDelivery">{order.shipping ? <><Truck size={14} /><span>{order.shipping.company} · {order.shipping.name}{order.shipping.deliveryTime ? ` · até ${order.shipping.deliveryTime} dias úteis` : ''}</span></> : <span>Entrega será confirmada após o pagamento.</span>}</div><strong>{formatPrice(order.total)}</strong></article>;
   })}</div> : <div className="empty accountEmpty"><p>Você ainda não fez nenhum pedido.</p><Link href="/loja" className="button dark">Explorar a loja</Link></div>}</>;
 }

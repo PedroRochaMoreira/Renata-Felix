@@ -7,8 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Footer, Header, ProductCard } from '../../components';
 import { Product, formatPrice, products } from '../../data';
 import { useStore } from '../../store';
-
-const defaultSizes = ['PP', 'P', 'M', 'G', 'GG'];
+import { defaultProductColor, productSizes } from '../../../lib/product-variants';
 
 export default function Produto() {
   const { id } = useParams<{ id: string }>();
@@ -29,14 +28,14 @@ export default function Produto() {
   if (!product) return notFound();
 
   const soldOut = product.stock === 0;
-  const sizes = product.sizes?.length ? product.sizes : defaultSizes;
-  const selectedInCart = cart.find(line => line.id === product.id && line.size === size)?.qty || 0;
+  const sizes = productSizes(product);
+  const selectedInCart = cart.filter(line => line.id === product.id).reduce((total, line) => total + line.qty, 0);
   const related = catalog.filter(item => item.id !== product.id && item.cat === product.cat && item.stock !== 0).slice(0, 4);
   const buy = () => {
     if (soldOut) return setNotice('Esta peça está esgotada no momento.');
     if (!size) return setNotice('Selecione um tamanho para adicionar à sacola.');
     if (selectedInCart >= (product.stock ?? 99)) return setNotice('Você já selecionou a quantidade disponível desta peça.');
-    add(product.id, size, product.stock ?? 99);
+    add(product.id, size, product.stock ?? 99, defaultProductColor(product));
     setNotice('Peça adicionada à sua sacola.');
     window.setTimeout(() => setNotice(''), 4800);
   };

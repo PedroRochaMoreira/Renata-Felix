@@ -34,7 +34,7 @@ export type Order = {
   id: string;
   userId: string;
   status: OrderStatus;
-  items: { id: string; name: string; size: string; quantity: number; unitPrice: number }[];
+  items: { id: string; name: string; size: string; color?: string; quantity: number; unitPrice: number }[];
   shipping?: { name: string; company: string; price: number; deliveryTime?: number };
   total: number;
   paymentPreferenceId?: string;
@@ -161,7 +161,7 @@ function fromRowOrder(row: Row): Order {
     const value = asRecord(item) || {};
     return {
       id: readString(value.id), name: readString(value.name), size: readString(value.size),
-      quantity: Math.max(1, Math.floor(asNumber(value.quantity, 1))), unitPrice: asNumber(value.unitPrice),
+      color: readOptionalString(value.color), quantity: Math.max(1, Math.floor(asNumber(value.quantity, 1))), unitPrice: asNumber(value.unitPrice),
     };
   }) : [];
   const rawShipping = asRecord(row.shipping);
@@ -244,7 +244,7 @@ async function migrateLegacyStore() {
         SELECT ${order.id}, ${order.userId}, ${order.status}, ${order.total}, ${order.paymentPreferenceId || null}, ${order.paymentId || null}, ${order.createdAt}, ${order.updatedAt}
         WHERE EXISTS (SELECT 1 FROM rf_users WHERE id = ${order.userId}) ON CONFLICT (id) DO NOTHING`;
       for (const item of order.items) {
-        await db`INSERT INTO rf_order_items (order_id, product_id, name, size, quantity, unit_price) VALUES (${order.id}, ${item.id}, ${item.name}, ${item.size}, ${item.quantity}, ${item.unitPrice}) ON CONFLICT DO NOTHING`;
+        await db`INSERT INTO rf_order_items (order_id, product_id, name, size, color, quantity, unit_price) VALUES (${order.id}, ${item.id}, ${item.name}, ${item.size}, ${item.color || ''}, ${item.quantity}, ${item.unitPrice}) ON CONFLICT DO NOTHING`;
       }
       if (order.shipping) await db`INSERT INTO rf_order_shipping (order_id, name, company, price, delivery_time) VALUES (${order.id}, ${order.shipping.name}, ${order.shipping.company}, ${order.shipping.price}, ${order.shipping.deliveryTime || null}) ON CONFLICT (order_id) DO NOTHING`;
     }
@@ -272,7 +272,7 @@ async function ensureSchema() {
       `CREATE TABLE IF NOT EXISTS rf_featured (position SMALLINT PRIMARY KEY CHECK (position BETWEEN 0 AND 3), product_id TEXT NOT NULL UNIQUE)`,
       `CREATE TABLE IF NOT EXISTS rf_orders (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES rf_users(id), status TEXT NOT NULL CHECK (status IN ('PENDING','APPROVED','REJECTED','CANCELLED')), total NUMERIC(12,2) NOT NULL CHECK (total >= 0), payment_preference_id TEXT, payment_id TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
       `CREATE INDEX IF NOT EXISTS rf_orders_user_idx ON rf_orders (user_id, created_at DESC)`,
-      `CREATE TABLE IF NOT EXISTS rf_order_items (id BIGSERIAL PRIMARY KEY, order_id TEXT NOT NULL REFERENCES rf_orders(id) ON DELETE CASCADE, product_id TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL, quantity INTEGER NOT NULL CHECK (quantity > 0), unit_price NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0), UNIQUE (order_id, product_id, size))`,
+      `CREATE TABLE IF NOT EXISTS rf_order_items (id BIGSERIAL PRIMARY KEY, order_id TEXT NOT NULL REFERENCES rf_orders(id) ON DELETE CASCADE, product_id TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL, color TEXT NOT NULL DEFAULT '', quantity INTEGER NOT NULL CHECK (quantity > 0), unit_price NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0))`,
       `CREATE TABLE IF NOT EXISTS rf_order_shipping (order_id TEXT PRIMARY KEY REFERENCES rf_orders(id) ON DELETE CASCADE, name TEXT NOT NULL, company TEXT NOT NULL, price NUMERIC(12,2) NOT NULL CHECK (price >= 0), delivery_time INTEGER)`,
       `CREATE TABLE IF NOT EXISTS rf_subscribers (email TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
       `CREATE TABLE IF NOT EXISTS rf_messages (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, subject TEXT NOT NULL, message TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
@@ -283,6 +283,11 @@ async function ensureSchema() {
       `CREATE TABLE IF NOT EXISTS rf_favorites (user_id TEXT NOT NULL REFERENCES rf_users(id) ON DELETE CASCADE, product_id TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (user_id, product_id))`,
     ];
     for (const statement of statements) await db.query(statement);
+    // Existing databases used a unique key that did not include colour. Keep
+    // legacy orders untouched while allowing the same size in two real colours.
+    await db.query(`ALTER TABLE rf_order_items ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT ''`);
+    await db.query(`ALTER TABLE rf_order_items DROP CONSTRAINT IF EXISTS rf_order_items_order_id_product_id_size_key`);
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS rf_order_items_order_product_size_color_idx ON rf_order_items (order_id, product_id, size, color)`);
     await migrateLegacyStore();
   })();
   await schemaReady;
@@ -293,12 +298,12 @@ async function databaseOrders(userId?: string): Promise<Order[]> {
   const db = database();
   const rows = userId
     ? await db`SELECT o.id, o.user_id, o.status, o.total, o.payment_preference_id, o.payment_id, o.created_at, o.updated_at,
-        COALESCE(json_agg(json_build_object('id', i.product_id, 'name', i.name, 'size', i.size, 'quantity', i.quantity, 'unitPrice', i.unit_price)) FILTER (WHERE i.id IS NOT NULL), '[]'::json) AS items,
+        COALESCE(json_agg(json_build_object('id', i.product_id, 'name', i.name, 'size', i.size, 'color', i.color, 'quantity', i.quantity, 'unitPrice', i.unit_price)) FILTER (WHERE i.id IS NOT NULL), '[]'::json) AS items,
         CASE WHEN s.order_id IS NULL THEN NULL ELSE json_build_object('name', s.name, 'company', s.company, 'price', s.price, 'deliveryTime', s.delivery_time) END AS shipping
         FROM rf_orders o LEFT JOIN rf_order_items i ON i.order_id = o.id LEFT JOIN rf_order_shipping s ON s.order_id = o.id
         WHERE o.user_id = ${userId} GROUP BY o.id, s.order_id, s.name, s.company, s.price, s.delivery_time ORDER BY o.created_at DESC`
     : await db`SELECT o.id, o.user_id, o.status, o.total, o.payment_preference_id, o.payment_id, o.created_at, o.updated_at,
-        COALESCE(json_agg(json_build_object('id', i.product_id, 'name', i.name, 'size', i.size, 'quantity', i.quantity, 'unitPrice', i.unit_price)) FILTER (WHERE i.id IS NOT NULL), '[]'::json) AS items,
+        COALESCE(json_agg(json_build_object('id', i.product_id, 'name', i.name, 'size', i.size, 'color', i.color, 'quantity', i.quantity, 'unitPrice', i.unit_price)) FILTER (WHERE i.id IS NOT NULL), '[]'::json) AS items,
         CASE WHEN s.order_id IS NULL THEN NULL ELSE json_build_object('name', s.name, 'company', s.company, 'price', s.price, 'deliveryTime', s.delivery_time) END AS shipping
         FROM rf_orders o LEFT JOIN rf_order_items i ON i.order_id = o.id LEFT JOIN rf_order_shipping s ON s.order_id = o.id
         GROUP BY o.id, s.order_id, s.name, s.company, s.price, s.delivery_time ORDER BY o.created_at DESC`;
@@ -518,7 +523,7 @@ export async function createOrder(userId: string, order: Omit<Order, 'id' | 'use
   await ensureSchema(); const db = database();
   await db.transaction([
     db`INSERT INTO rf_orders (id, user_id, status, total, payment_preference_id, payment_id, created_at, updated_at) VALUES (${created.id}, ${userId}, 'PENDING', ${created.total}, ${created.paymentPreferenceId || null}, ${created.paymentId || null}, ${now}, ${now})`,
-    ...created.items.map(item => db`INSERT INTO rf_order_items (order_id, product_id, name, size, quantity, unit_price) VALUES (${created.id}, ${item.id}, ${item.name}, ${item.size}, ${item.quantity}, ${item.unitPrice})`),
+    ...created.items.map(item => db`INSERT INTO rf_order_items (order_id, product_id, name, size, color, quantity, unit_price) VALUES (${created.id}, ${item.id}, ${item.name}, ${item.size}, ${item.color || ''}, ${item.quantity}, ${item.unitPrice})`),
     ...(created.shipping ? [db`INSERT INTO rf_order_shipping (order_id, name, company, price, delivery_time) VALUES (${created.id}, ${created.shipping.name}, ${created.shipping.company}, ${created.shipping.price}, ${created.shipping.deliveryTime || null})`] : []),
   ]);
   return created;

@@ -5,10 +5,11 @@ import { sendOrderStatusEmail } from '../../../../lib/email';
 import { checkRateLimit, requestClientKey } from '../../../../lib/rate-limit';
 import { quoteShipping } from '../../../../lib/shipping';
 import { createOrder, setOrderPreference, setOrderStatus } from '../../../../lib/store';
+import { defaultProductColor, productColors, productSizes } from '../../../../lib/product-variants';
 
 export const runtime = 'nodejs';
 
-type CartItem = { id: string; size: string; quantity: number };
+type CartItem = { id: string; size: string; color?: string; quantity: number };
 type Shipping = { id: string | number; name: string; company: string; price: number; deliveryTime?: number; postalCode: string };
 type PreferenceResponse = { id?: string; init_point?: string; sandbox_init_point?: string; message?: string; cause?: { description?: string }[] };
 
@@ -53,29 +54,41 @@ export async function POST(req: Request) {
     }
 
     const catalog = await getCatalog();
-    const merged = new Map<string, CartItem>();
+    const selectedItems: Required<CartItem>[] = [];
     for (const item of body.items) {
       const id = safeString(item?.id, 128);
       const size = safeString(item?.size, 32);
+      const requestedColor = safeString(item?.color, 60);
       const quantity = Number(item?.quantity);
       if (!id || !size || !Number.isInteger(quantity) || quantity < 1 || quantity > 20) {
         throw new PaymentInputError('Há uma quantidade ou tamanho inválido na sua sacola.');
       }
-      const key = `${id}:${size}`;
-      const current = merged.get(key);
-      const totalQuantity = (current?.quantity || 0) + quantity;
-      if (totalQuantity > 20) throw new PaymentInputError('Limite de 20 unidades por peça e tamanho em cada compra.');
-      merged.set(key, { id, size, quantity: totalQuantity });
+      const product = catalog.find(entry => entry.id === id);
+      if (!product || product.stock === 0) throw new PaymentInputError('Uma das peças da sua sacola não está mais disponível.');
+      const colors = productColors(product);
+      const color = requestedColor || defaultProductColor(product);
+      if (!colors.includes(color)) throw new PaymentInputError(`A cor selecionada para ${product.name} não está mais disponível.`);
+      if (!productSizes(product).includes(size)) throw new PaymentInputError(`O tamanho selecionado para ${product.name} não está mais disponível.`);
+      selectedItems.push({ id, size, color, quantity });
     }
 
+    const merged = new Map<string, Required<CartItem>>();
+    for (const item of selectedItems) {
+      const key = `${item.id}:${item.size}:${item.color}`;
+      const current = merged.get(key);
+      const totalQuantity = (current?.quantity || 0) + item.quantity;
+      if (totalQuantity > 20) throw new PaymentInputError('Limite de 20 unidades por peça e tamanho em cada compra.');
+      merged.set(key, { ...item, quantity: totalQuantity });
+    }
+
+    const quantitiesByProduct = new Map<string, number>();
+    for (const item of merged.values()) quantitiesByProduct.set(item.id, (quantitiesByProduct.get(item.id) || 0) + item.quantity);
     const items = [...merged.values()].map(item => {
       const product = catalog.find(entry => entry.id === item.id);
       if (!product || product.stock === 0) throw new PaymentInputError('Uma das peças da sua sacola não está mais disponível.');
       if (!Number.isFinite(product.price) || product.price <= 0) throw new PaymentInputError('Uma peça da sacola tem um preço inválido. Atualize a página e tente novamente.');
-      if (item.quantity > (product.stock ?? 0)) throw new PaymentInputError(`${product.name} não possui essa quantidade disponível.`);
-      const sizes = product.sizes?.length ? product.sizes : ['PP', 'P', 'M', 'G', 'GG'];
-      if (!sizes.includes(item.size)) throw new PaymentInputError(`O tamanho selecionado para ${product.name} não está mais disponível.`);
-      return { id: product.id, name: product.name, size: item.size, quantity: item.quantity, unitPrice: product.price };
+      if ((quantitiesByProduct.get(item.id) || 0) > (product.stock ?? 0)) throw new PaymentInputError(`${product.name} não possui essa quantidade disponível.`);
+      return { id: product.id, name: product.name, size: item.size, color: item.color, quantity: item.quantity, unitPrice: product.price };
     });
 
     const postalCode = safeString(body.shipping.postalCode, 16).replace(/\D/g, '');
@@ -98,7 +111,7 @@ export async function POST(req: Request) {
         external_reference: order.id,
         metadata: { source: 'renata-felix', customer_email: user.email },
         items: [
-          ...items.map(item => ({ title: `${item.name} · ${item.size}`, quantity: item.quantity, unit_price: item.unitPrice, currency_id: 'BRL' })),
+          ...items.map(item => ({ title: `${item.name} · ${item.color} · ${item.size}`, quantity: item.quantity, unit_price: item.unitPrice, currency_id: 'BRL' })),
           { title: `Entrega · ${shipping.company} ${shipping.name}`, quantity: 1, unit_price: shipping.price, currency_id: 'BRL' },
         ],
         payer: { email: user.email },
