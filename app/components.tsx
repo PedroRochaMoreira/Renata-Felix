@@ -13,6 +13,7 @@ const navigation = [
   { href: '/loja?categoria=Vestidos', label: 'Vestidos' },
   { href: '/loja?categoria=Alfaiataria', label: 'Alfaiataria' },
   { href: '/sobre', label: 'Sobre' },
+  { href: '/contato', label: 'Fale conosco' },
 ];
 
 export function Header() {
