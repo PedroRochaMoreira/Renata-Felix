@@ -10,7 +10,15 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || '.next',
   poweredByHeader: false,
-  images: { remotePatterns: [{ protocol: 'https', hostname: 'images.unsplash.com' }] },
+  images: {
+    // As fotos das peças ficam no Vercel Blob. Sem este domínio liberado, o
+    // next/image recusa a imagem e a loja fica presa em <img> sem otimização.
+    remotePatterns: [
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: '*.public.blob.vercel-storage.com' },
+    ],
+    formats: ['image/avif', 'image/webp'],
+  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

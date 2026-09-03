@@ -1,18 +1,34 @@
-'use client';
-
+import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowDownRight, ArrowRight, Clock3, MapPin, MessageCircle, Phone, Sparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import FeaturedIcons from './featured-icons';
 import { Footer, Header, Newsletter, ProductCard } from './components';
-import { Product, products } from './data';
+import { getCatalog } from '../lib/catalog';
+import { featured } from '../lib/store';
 
-export default function Home() {
-  const [catalog, setCatalog] = useState<Product[]>(products);
+export const dynamic = 'force-dynamic';
 
-  useEffect(() => { fetch('/api/catalog').then(response => response.ok ? response.json() : null).then(data => { if (data?.products) setCatalog(data.products); }).catch(() => undefined); }, []);
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+  openGraph: { url: '/' },
+};
+
+/** Sem destaques escolhidos, a home mostra peças que não são novidade. */
+async function homeSelections() {
+  const catalog = await getCatalog();
   const newArrivals = catalog.filter(product => product.isNew).slice(0, 4);
+  try {
+    const ids = await featured();
+    const chosen = ids.map(id => catalog.find(product => product.id === id)).filter((product): product is NonNullable<typeof product> => Boolean(product));
+    return { newArrivals, icons: chosen.length ? chosen : catalog.filter(product => !product.isNew).slice(0, 4) };
+  } catch {
+    return { newArrivals, icons: catalog.filter(product => !product.isNew).slice(0, 4) };
+  }
+}
+
+export default async function Home() {
+  const { newArrivals, icons } = await homeSelections();
 
   return <><Header /><main>
     <section className="hero heroLuxury">
@@ -28,7 +44,7 @@ export default function Home() {
 
     <section className="splitFeature"><Link href="/loja?categoria=Alfaiataria" className="splitFeatureImage"><Image src="https://images.unsplash.com/photo-1591369822096-ffd140ec948f?auto=format&fit=crop&w=1500&q=88" alt="Alfaiataria feminina" fill sizes="(max-width: 760px) 100vw, 52vw" /><span className="imageCaption">01 / Alfaiataria</span></Link><div className="splitFeatureCopy"><span className="eyebrow">Escolhas que ficam</span><h2 className="serif">O refinamento está nos detalhes que você sente.</h2><p>Linhas precisas, texturas especiais e proporções que fazem uma peça ser lembrada muito depois do primeiro uso.</p><Link href="/loja?categoria=Alfaiataria" className="button dark">Conhecer alfaiataria <ArrowRight size={14} /></Link></div></section>
 
-    <section className="section iconSection"><div className="sectionHead"><div><span className="eyebrow">A assinatura da loja</span><h2 className="serif">Ícones Renata Felix</h2></div><Link href="/loja" className="textLink">Ver a loja <ArrowRight size={13} /></Link></div><FeaturedIcons /></section>
+    <section className="section iconSection"><div className="sectionHead"><div><span className="eyebrow">A assinatura da loja</span><h2 className="serif">Ícones Renata Felix</h2></div><Link href="/loja" className="textLink">Ver a loja <ArrowRight size={13} /></Link></div><FeaturedIcons items={icons} /></section>
 
     <section className="storeBanner"><div><span className="eyebrow">Visite-nos</span><h2 className="serif">Uma experiência para ver, tocar e se reconhecer.</h2><p>R. José Alencar, Qd. 77 · Lt. 12 · Luziânia — GO</p><div className="storeHours"><Clock3 size={18} /><div><span>Horário de funcionamento</span><strong>Segunda a sexta · 9h às 18h</strong></div></div><Link href="/lojas" className="textLink">Como chegar <MapPin size={13} /></Link></div><Image src="/brand/fachada-renata-felix.png" width={1290} height={1086} alt="Fachada da loja Renata Felix" /></section>
 

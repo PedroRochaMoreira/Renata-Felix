@@ -1,6 +1,14 @@
 import Link from 'next/link';
 import { Footer, Header, ProductCard } from '../components';
 import { getCatalog } from '../../lib/catalog';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Loja',
+  description: 'Todas as peças da curadoria Renata Felix: vestidos, alfaiataria, camisas, tricots, saias e casacos.',
+  alternates: { canonical: '/loja' },
+  openGraph: { url: '/loja' },
+};
 
 export const dynamic = 'force-dynamic';
 

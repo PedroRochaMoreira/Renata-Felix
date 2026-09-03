@@ -1,7 +1,14 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Footer, Header } from '../components';
 import { currentUser } from '../../lib/auth';
+
+export const metadata: Metadata = {
+  title: 'Minha conta',
+  description: 'Acompanhe pedidos, dados pessoais e endereços da sua conta Renata Felix.',
+  robots: { index: false, follow: false },
+};
 
 export default async function ContaLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
