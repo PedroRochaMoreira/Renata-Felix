@@ -9,17 +9,19 @@ type LegalDocumentProps = {
 };
 
 export function LegalDocument({ eyebrow, title, updatedAt, children }: LegalDocumentProps) {
-  return <>
-    <Header />
-    <main className="legalPage">
-      <header className="legalHero">
-        <span className="eyebrow">{eyebrow}</span>
-        <h1 className="serif">{title}</h1>
-        <p>Transparência é parte da nossa forma de cuidar da sua experiência.</p>
-        <span className="legalUpdated">Atualizado em {updatedAt}</span>
-      </header>
-      <article className="legalContent">{children}</article>
-    </main>
-    <Footer />
-  </>;
+  return (
+    <>
+      <Header />
+      <main className="legalPage">
+        <header className="legalHero">
+          <span className="eyebrow">{eyebrow}</span>
+          <h1 className="serif">{title}</h1>
+          <p>Transparência é parte da nossa forma de cuidar da sua experiência.</p>
+          <span className="legalUpdated">Atualizado em {updatedAt}</span>
+        </header>
+        <article className="legalContent">{children}</article>
+      </main>
+      <Footer />
+    </>
+  );
 }

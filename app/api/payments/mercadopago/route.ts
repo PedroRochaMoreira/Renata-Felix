@@ -13,10 +13,18 @@ export const runtime = 'nodejs';
 
 type CartItem = { id: string; size: string; color?: string; quantity: number };
 type Shipping = { id: string | number; name: string; company: string; price: number; deliveryTime?: number; postalCode: string };
-type PreferenceResponse = { id?: string; init_point?: string; sandbox_init_point?: string; message?: string; cause?: { description?: string }[] };
+type PreferenceResponse = {
+  id?: string;
+  init_point?: string;
+  sandbox_init_point?: string;
+  message?: string;
+  cause?: { description?: string }[];
+};
 
 class PaymentInputError extends Error {
-  constructor(message: string) { super(message); }
+  constructor(message: string) {
+    super(message);
+  }
 }
 
 function baseUrl(req: Request) {
@@ -33,7 +41,8 @@ function paymentError(data: PreferenceResponse) {
 
 export async function POST(req: Request) {
   const token = process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim();
-  if (!token) return NextResponse.json({ error: 'O pagamento seguro ainda não está configurado. Tente novamente mais tarde.' }, { status: 503 });
+  if (!token)
+    return NextResponse.json({ error: 'O pagamento seguro ainda não está configurado. Tente novamente mais tarde.' }, { status: 503 });
 
   let orderId: string | undefined;
   try {
@@ -44,7 +53,7 @@ export async function POST(req: Request) {
 
     let body: { items?: CartItem[]; shipping?: Shipping; paymentMethod?: unknown };
     try {
-      body = await req.json() as { items?: CartItem[]; shipping?: Shipping; paymentMethod?: unknown };
+      body = (await req.json()) as { items?: CartItem[]; shipping?: Shipping; paymentMethod?: unknown };
     } catch {
       throw new PaymentInputError('Não foi possível ler os dados do pedido. Atualize a página e tente novamente.');
     }
@@ -70,7 +79,8 @@ export async function POST(req: Request) {
       const colors = productColors(product).map(normalizeColor);
       const color = requestedColor || normalizeColor(defaultProductColor(product));
       if (!colors.includes(color)) throw new PaymentInputError(`A cor selecionada para ${product.name} não está mais disponível.`);
-      if (!productSizes(product).includes(size)) throw new PaymentInputError(`O tamanho selecionado para ${product.name} não está mais disponível.`);
+      if (!productSizes(product).includes(size))
+        throw new PaymentInputError(`O tamanho selecionado para ${product.name} não está mais disponível.`);
       selectedItems.push({ id, size, color, quantity });
     }
 
@@ -93,30 +103,46 @@ export async function POST(req: Request) {
     const items = [...merged.values()].map(item => {
       const product = catalog.find(entry => entry.id === item.id);
       if (!product || product.stock === 0) throw new PaymentInputError('Uma das peças da sua sacola não está mais disponível.');
-      if (!Number.isFinite(product.price) || product.price <= 0) throw new PaymentInputError('Uma peça da sacola tem um preço inválido. Atualize a página e tente novamente.');
+      if (!Number.isFinite(product.price) || product.price <= 0)
+        throw new PaymentInputError('Uma peça da sacola tem um preço inválido. Atualize a página e tente novamente.');
       const available = variantStock(product.variants || [], item.size, item.color);
       const wanted = quantitiesByVariant.get(`${item.id}:${variantKey(item.size, item.color)}`) || 0;
       if (wanted > available) {
-        throw new PaymentInputError(available === 0
-          ? `${product.name} na cor ${item.color} e tamanho ${item.size} acabou de esgotar.`
-          : `${product.name} na cor ${item.color} tem apenas ${available} peça(s) no tamanho ${item.size}.`);
+        throw new PaymentInputError(
+          available === 0
+            ? `${product.name} na cor ${item.color} e tamanho ${item.size} acabou de esgotar.`
+            : `${product.name} na cor ${item.color} tem apenas ${available} peça(s) no tamanho ${item.size}.`,
+        );
       }
       return { id: product.id, name: product.name, size: item.size, color: item.color, quantity: item.quantity, unitPrice: product.price };
     });
 
     const postalCode = safeString(body.shipping.postalCode, 16).replace(/\D/g, '');
-    const quotes = await quoteShipping(postalCode, items.map(item => ({ id: item.id, price: item.unitPrice, quantity: item.quantity })));
+    const quotes = await quoteShipping(
+      postalCode,
+      items.map(item => ({ id: item.id, price: item.unitPrice, quantity: item.quantity })),
+    );
     const selectedShipping = quotes.find(quote => String(quote.id) === String(body.shipping!.id));
     if (!selectedShipping || !Number.isFinite(selectedShipping.price) || selectedShipping.price < 0) {
       throw new PaymentInputError('A modalidade de entrega selecionada expirou. Calcule o frete novamente.');
     }
-    const shipping = { name: selectedShipping.name, company: selectedShipping.company, price: selectedShipping.price, deliveryTime: selectedShipping.deliveryTime };
+    const shipping = {
+      name: selectedShipping.name,
+      company: selectedShipping.company,
+      price: selectedShipping.price,
+      deliveryTime: selectedShipping.deliveryTime,
+    };
     const paymentMethod: PaymentMethod = isPaymentMethod(body.paymentMethod) ? body.paymentMethod : 'OTHER';
     const totals = orderTotals(items, shipping.price, paymentMethod);
     if (!Number.isFinite(totals.total) || totals.total <= 0) throw new PaymentInputError('Não foi possível calcular o total do pedido.');
 
     const order = await createOrder(user.id, {
-      items, shipping, paymentMethod, subtotal: totals.subtotal, discount: totals.discount, total: totals.total,
+      items,
+      shipping,
+      paymentMethod,
+      subtotal: totals.subtotal,
+      discount: totals.discount,
+      total: totals.total,
     });
     orderId = order.id;
     const siteUrl = baseUrl(req);
@@ -127,7 +153,12 @@ export async function POST(req: Request) {
         external_reference: order.id,
         metadata: { source: 'renata-felix', customer_email: user.email },
         items: [
-          ...items.map(item => ({ title: `${item.name} · ${item.color} · ${item.size}`, quantity: item.quantity, unit_price: unitPriceFor(item.unitPrice, paymentMethod), currency_id: 'BRL' })),
+          ...items.map(item => ({
+            title: `${item.name} · ${item.color} · ${item.size}`,
+            quantity: item.quantity,
+            unit_price: unitPriceFor(item.unitPrice, paymentMethod),
+            currency_id: 'BRL',
+          })),
           { title: `Entrega · ${shipping.company} ${shipping.name}`, quantity: 1, unit_price: shipping.price, currency_id: 'BRL' },
         ],
         payer: { email: user.email },
@@ -141,9 +172,19 @@ export async function POST(req: Request) {
         // O preço enviado já é o do método escolhido, então a preferência
         // libera apenas esse método: sem isso a cliente poderia pagar no PIX
         // o valor cheio, ou no cartão o valor com desconto de PIX.
-        payment_methods: paymentMethod === 'PIX'
-          ? { installments: 1, excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'atm' }, { id: 'account_money' }] }
-          : { installments: 6, excluded_payment_types: [{ id: 'bank_transfer' }] },
+        payment_methods:
+          paymentMethod === 'PIX'
+            ? {
+                installments: 1,
+                excluded_payment_types: [
+                  { id: 'credit_card' },
+                  { id: 'debit_card' },
+                  { id: 'ticket' },
+                  { id: 'atm' },
+                  { id: 'account_money' },
+                ],
+              }
+            : { installments: 6, excluded_payment_types: [{ id: 'bank_transfer' }] },
       }),
       cache: 'no-store',
     });
@@ -170,6 +211,9 @@ export async function POST(req: Request) {
     const message = error instanceof Error ? error.message : 'Não foi possível conectar ao Mercado Pago.';
     const status = error instanceof PaymentInputError ? 400 : message === 'Não autorizado' ? 401 : 502;
     if (orderId) await setOrderStatus(orderId, 'CANCELLED').catch(() => undefined);
-    return NextResponse.json({ error: status === 502 ? 'Não foi possível iniciar o pagamento no momento. Tente novamente em instantes.' : message }, { status });
+    return NextResponse.json(
+      { error: status === 502 ? 'Não foi possível iniciar o pagamento no momento. Tente novamente em instantes.' : message },
+      { status },
+    );
   }
 }

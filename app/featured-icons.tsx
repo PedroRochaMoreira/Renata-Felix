@@ -7,5 +7,11 @@ import { ProductCard } from './components';
  * nenhum produto no HTML.
  */
 export default function FeaturedIcons({ items }: { items: Product[] }) {
-  return <div className="grid">{items.map(product => <ProductCard product={product} key={product.id} />)}</div>;
+  return (
+    <div className="grid">
+      {items.map(product => (
+        <ProductCard product={product} key={product.id} />
+      ))}
+    </div>
+  );
 }

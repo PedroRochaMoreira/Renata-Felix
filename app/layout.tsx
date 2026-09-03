@@ -63,11 +63,13 @@ const organizationSchema = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <html lang="pt-BR">
-    <body>
-      <StoreProvider>{children}</StoreProvider>
-      <CookieConsent />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }} />
-    </body>
-  </html>;
+  return (
+    <html lang="pt-BR">
+      <body>
+        <StoreProvider>{children}</StoreProvider>
+        <CookieConsent />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }} />
+      </body>
+    </html>
+  );
 }

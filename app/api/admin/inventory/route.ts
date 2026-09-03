@@ -7,7 +7,7 @@ import { removeUnusedImages } from '../../../../lib/uploads';
 export async function PATCH(req: Request) {
   try {
     await requireAdmin();
-    const { id, size, color, stock } = await req.json() as { id?: string; size?: string; color?: string; stock?: unknown };
+    const { id, size, color, stock } = (await req.json()) as { id?: string; size?: string; color?: string; stock?: unknown };
     if (!id || !Number.isFinite(Number(stock)) || Number(stock) < 0) {
       return NextResponse.json({ error: 'Dados de estoque inválidos.' }, { status: 400 });
     }

@@ -21,17 +21,38 @@ export async function sendEmail(message: Email) {
   return { sent: true, id: result.data?.id };
 }
 
-export function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char] || char)); }
+export function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char] || char);
+}
 
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number.isFinite(value) ? value : 0);
 }
 
 function statusCopy(status: OrderEmailStatus) {
-  if (status === 'APPROVED') return { subject: 'Pagamento aprovado', title: 'Pagamento aprovado.', body: 'Recebemos a confirmação do seu pagamento. Agora vamos preparar sua peça com todo cuidado.' };
-  if (status === 'REJECTED') return { subject: 'Não foi possível aprovar o pagamento', title: 'Pagamento não aprovado.', body: 'O pagamento não foi aprovado pelo provedor. Você pode tentar novamente pelo seu pedido.' };
-  if (status === 'CANCELLED') return { subject: 'Pagamento cancelado', title: 'Pagamento cancelado.', body: 'O pagamento deste pedido foi cancelado. Se precisar de ajuda, fale com a nossa equipe.' };
-  return { subject: 'Pedido recebido', title: 'Seu pedido foi recebido.', body: 'Reservamos seu pedido e estamos aguardando a confirmação do pagamento.' };
+  if (status === 'APPROVED')
+    return {
+      subject: 'Pagamento aprovado',
+      title: 'Pagamento aprovado.',
+      body: 'Recebemos a confirmação do seu pagamento. Agora vamos preparar sua peça com todo cuidado.',
+    };
+  if (status === 'REJECTED')
+    return {
+      subject: 'Não foi possível aprovar o pagamento',
+      title: 'Pagamento não aprovado.',
+      body: 'O pagamento não foi aprovado pelo provedor. Você pode tentar novamente pelo seu pedido.',
+    };
+  if (status === 'CANCELLED')
+    return {
+      subject: 'Pagamento cancelado',
+      title: 'Pagamento cancelado.',
+      body: 'O pagamento deste pedido foi cancelado. Se precisar de ajuda, fale com a nossa equipe.',
+    };
+  return {
+    subject: 'Pedido recebido',
+    title: 'Seu pedido foi recebido.',
+    body: 'Reservamos seu pedido e estamos aguardando a confirmação do pagamento.',
+  };
 }
 
 /** Envia uma atualização de pedido sem acoplar o fluxo de compra ao provedor de e-mail. */
@@ -41,8 +62,15 @@ export async function sendOrderStatusEmail(input: { to: string; name?: string; o
   const copy = statusCopy(input.order.status);
   const customerName = input.name?.trim() || 'cliente';
   const accountUrl = `${input.baseUrl.replace(/\/$/, '')}/conta/pedidos`;
-  const lines = (input.order.items || []).map(item => `${item.name}${item.color ? ` · ${item.color}` : ''} · ${item.size} × ${item.quantity}`).join('\n');
-  const safeLines = (input.order.items || []).map(item => `<li>${escapeHtml(item.name)}${item.color ? ` · ${escapeHtml(item.color)}` : ''} · ${escapeHtml(item.size)} × ${item.quantity}</li>`).join('');
+  const lines = (input.order.items || [])
+    .map(item => `${item.name}${item.color ? ` · ${item.color}` : ''} · ${item.size} × ${item.quantity}`)
+    .join('\n');
+  const safeLines = (input.order.items || [])
+    .map(
+      item =>
+        `<li>${escapeHtml(item.name)}${item.color ? ` · ${escapeHtml(item.color)}` : ''} · ${escapeHtml(item.size)} × ${item.quantity}</li>`,
+    )
+    .join('');
   const delivery = input.order.shipping ? `${input.order.shipping.company} · ${input.order.shipping.name}` : '';
   const discount = input.order.discount && input.order.discount > 0 ? `Desconto PIX: -${money(input.order.discount)}` : '';
   const safeDelivery = input.order.shipping ? `${escapeHtml(input.order.shipping.company)} · ${escapeHtml(input.order.shipping.name)}` : '';

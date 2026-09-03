@@ -83,27 +83,43 @@ export default async function ProdutoPage({ params }: PageProps) {
     },
   };
 
-  return <>
-    <Header />
-    <main className="productPage">
-      <nav className="breadcrumbs" aria-label="Caminho da página">
-        <Link href="/">Início</Link><ChevronRight size={12} />
-        <Link href="/loja">Loja</Link><ChevronRight size={12} />
-        <Link href={`/loja?categoria=${encodeURIComponent(product.cat)}`}>{product.cat}</Link><ChevronRight size={12} />
-        <span>{product.name}</span>
-      </nav>
+  return (
+    <>
+      <Header />
+      <main className="productPage">
+        <nav className="breadcrumbs" aria-label="Caminho da página">
+          <Link href="/">Início</Link>
+          <ChevronRight size={12} />
+          <Link href="/loja">Loja</Link>
+          <ChevronRight size={12} />
+          <Link href={`/loja?categoria=${encodeURIComponent(product.cat)}`}>{product.cat}</Link>
+          <ChevronRight size={12} />
+          <span>{product.name}</span>
+        </nav>
 
-      <ProductView product={product} />
+        <ProductView product={product} key={product.id} />
 
-      {related.length > 0 && <section className="section related">
-        <div className="sectionHead">
-          <div><span className="eyebrow">Para continuar a história</span><h2 className="serif">Você também pode gostar</h2></div>
-          <Link href={`/loja?categoria=${encodeURIComponent(product.cat)}`} className="textLink">Ver {product.cat}</Link>
-        </div>
-        <div className="grid">{related.map(item => <ProductCard product={item} key={item.id} />)}</div>
-      </section>}
-    </main>
-    <Footer />
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
-  </>;
+        {related.length > 0 && (
+          <section className="section related">
+            <div className="sectionHead">
+              <div>
+                <span className="eyebrow">Para continuar a história</span>
+                <h2 className="serif">Você também pode gostar</h2>
+              </div>
+              <Link href={`/loja?categoria=${encodeURIComponent(product.cat)}`} className="textLink">
+                Ver {product.cat}
+              </Link>
+            </div>
+            <div className="grid">
+              {related.map(item => (
+                <ProductCard product={item} key={item.id} />
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
+      <Footer />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
+    </>
+  );
 }

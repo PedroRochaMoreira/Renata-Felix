@@ -29,10 +29,12 @@ function paymentStatus(value: unknown): OrderEmailStatus | null {
 }
 
 function signatureParts(signature: string) {
-  return Object.fromEntries(signature.split(',').map(part => {
-    const [key, ...value] = part.trim().split('=');
-    return [key, value.join('=')];
-  }));
+  return Object.fromEntries(
+    signature.split(',').map(part => {
+      const [key, ...value] = part.trim().split('=');
+      return [key, value.join('=')];
+    }),
+  );
 }
 
 function isValidSignature(req: Request, paymentId: string) {
@@ -53,7 +55,8 @@ function isValidSignature(req: Request, paymentId: string) {
 function shouldNotify(paymentId: string, status: OrderEmailStatus) {
   const key = `${paymentId}:${status}`;
   const now = Date.now();
-  for (const [entry, createdAt] of notifiedPayments) if (now - createdAt > 24 * 60 * 60 * 1000 || notifiedPayments.size > 500) notifiedPayments.delete(entry);
+  for (const [entry, createdAt] of notifiedPayments)
+    if (now - createdAt > 24 * 60 * 60 * 1000 || notifiedPayments.size > 500) notifiedPayments.delete(entry);
   if (notifiedPayments.has(key)) return false;
   return true;
 }
@@ -69,16 +72,21 @@ export async function POST(req: Request) {
   try {
     let body: WebhookBody = {};
     try {
-      body = await req.json() as WebhookBody;
+      body = (await req.json()) as WebhookBody;
     } catch {
       // O formato antigo do Mercado Pago pode enviar os campos pela URL.
     }
     const url = new URL(req.url);
-    const topic = firstString(body.type) || firstString(body.action).split('.')[0] || firstString(url.searchParams.get('type')) || firstString(url.searchParams.get('topic'));
+    const topic =
+      firstString(body.type) ||
+      firstString(body.action).split('.')[0] ||
+      firstString(url.searchParams.get('type')) ||
+      firstString(url.searchParams.get('topic'));
     const paymentId = String(body.data?.id ?? url.searchParams.get('data.id') ?? url.searchParams.get('id') ?? '').trim();
     if (topic && topic !== 'payment') return NextResponse.json({ ok: true, ignored: true });
     if (!/^\d{4,32}$/.test(paymentId)) return NextResponse.json({ ok: true, ignored: true });
-    if (!isValidSignature(req, paymentId)) return NextResponse.json({ ok: false, error: 'Assinatura do webhook inválida.' }, { status: 401 });
+    if (!isValidSignature(req, paymentId))
+      return NextResponse.json({ ok: false, error: 'Assinatura do webhook inválida.' }, { status: 401 });
 
     const response = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },

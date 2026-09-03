@@ -22,10 +22,17 @@ export async function uploadProductImage(file: File) {
   assertImage(file);
   const name = `products/${new Date().getFullYear()}/${randomBytes(12).toString('hex')}.${extensions[file.type]}`;
   if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const result = await put(name, Buffer.from(await file.arrayBuffer()), { access: 'public', contentType: file.type, addRandomSuffix: false });
+    const result = await put(name, Buffer.from(await file.arrayBuffer()), {
+      access: 'public',
+      contentType: file.type,
+      addRandomSuffix: false,
+    });
     return result.url;
   }
-  if (process.env.VERCEL) throw new Error('O armazenamento de fotos ainda não está configurado. Crie um Vercel Blob e adicione BLOB_READ_WRITE_TOKEN nas variáveis do projeto.');
+  if (process.env.VERCEL)
+    throw new Error(
+      'O armazenamento de fotos ainda não está configurado. Crie um Vercel Blob e adicione BLOB_READ_WRITE_TOKEN nas variáveis do projeto.',
+    );
   const directory = path.join(process.cwd(), 'public', 'uploads');
   await mkdir(directory, { recursive: true });
   const localName = name.split('/').pop()!;
@@ -36,17 +43,31 @@ export async function uploadProductImage(file: File) {
 export async function listProductImages() {
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     const result = await list({ prefix: 'products/', limit: 1000 });
-    return result.blobs.map(blob => blob.url).sort().reverse();
+    return result.blobs
+      .map(blob => blob.url)
+      .sort()
+      .reverse();
   }
   if (process.env.VERCEL) return [];
   const directory = path.join(process.cwd(), 'public', 'uploads');
-  try { return (await readdir(directory)).filter(file => /\.(jpg|jpeg|png|webp)$/i.test(file)).map(file => `/uploads/${file}`); } catch { return []; }
+  try {
+    return (await readdir(directory)).filter(file => /\.(jpg|jpeg|png|webp)$/i.test(file)).map(file => `/uploads/${file}`);
+  } catch {
+    return [];
+  }
 }
 
 export async function removeProductImage(url: string) {
-  if (process.env.BLOB_READ_WRITE_TOKEN && url.includes('.blob.vercel-storage.com/')) { await del(url); return; }
+  if (process.env.BLOB_READ_WRITE_TOKEN && url.includes('.blob.vercel-storage.com/')) {
+    await del(url);
+    return;
+  }
   if (!process.env.VERCEL && url.startsWith('/uploads/')) {
-    try { await unlink(path.join(process.cwd(), 'public', 'uploads', path.basename(url))); } catch { /* image may be shared or already absent */ }
+    try {
+      await unlink(path.join(process.cwd(), 'public', 'uploads', path.basename(url)));
+    } catch {
+      /* image may be shared or already absent */
+    }
   }
 }
 

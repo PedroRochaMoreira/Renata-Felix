@@ -10,7 +10,10 @@ function siteUrl(req: Request) {
 export async function GET() {
   try {
     const user = await requireUser();
-    return NextResponse.json({ user: publicUser(user), orders: await ordersForUser(user.id) }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json(
+      { user: publicUser(user), orders: await ordersForUser(user.id) },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch {
     return NextResponse.json({ error: 'Entre na sua conta para continuar.' }, { status: 401 });
   }
@@ -19,7 +22,7 @@ export async function GET() {
 export async function PATCH(req: Request) {
   try {
     const current = await requireUser();
-    const body = await req.json() as { name?: string; email?: string; address?: Address };
+    const body = (await req.json()) as { name?: string; email?: string; address?: Address };
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : undefined;
     const emailChanged = Boolean(email && email !== current.email);
     const user = await updateUserProfile(current.id, body);

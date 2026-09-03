@@ -11,7 +11,10 @@ export async function POST(req: Request) {
     if (!checkRateLimit(`shipping:${requestClientKey(req)}`, 12, 10 * 60 * 1000)) {
       return NextResponse.json({ error: 'Muitas consultas de frete. Aguarde alguns minutos antes de tentar novamente.' }, { status: 429 });
     }
-    const { postalCode, items } = await req.json() as { postalCode?: string; items?: { id: string; size?: string; color?: string; quantity: number }[] };
+    const { postalCode, items } = (await req.json()) as {
+      postalCode?: string;
+      items?: { id: string; size?: string; color?: string; quantity: number }[];
+    };
     if (!Array.isArray(items) || !items.length) return NextResponse.json({ error: 'A sacola está vazia.' }, { status: 400 });
     if (items.length > 30) return NextResponse.json({ error: 'Há itens demais na sacola para calcular o frete.' }, { status: 400 });
     const catalog = await getCatalog();
@@ -45,7 +48,10 @@ export async function POST(req: Request) {
       const product = catalog.find(entry => entry.id === id)!;
       return { id: product.id, price: product.price, quantity };
     });
-    return NextResponse.json({ quotes: await quoteShipping(String(postalCode || ''), secureItems) }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json(
+      { quotes: await quoteShipping(String(postalCode || ''), secureItems) },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Não foi possível calcular o frete.';
     return NextResponse.json({ error: message }, { status: message.includes('Configure') ? 503 : 400 });

@@ -9,7 +9,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Aguarde alguns minutos antes de fazer outro cadastro.' }, { status: 429 });
     }
     const { email } = await req.json();
-    const recipient = String(email || '').trim().toLowerCase();
+    const recipient = String(email || '')
+      .trim()
+      .toLowerCase();
     await subscribe(recipient);
     try {
       await sendEmail({
