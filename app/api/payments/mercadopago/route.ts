@@ -4,7 +4,7 @@ import { getCatalog } from '../../../../lib/catalog';
 import { sendOrderStatusEmail } from '../../../../lib/email';
 import { checkRateLimit, requestClientKey } from '../../../../lib/rate-limit';
 import { quoteShipping } from '../../../../lib/shipping';
-import { createOrder, setOrderPreference, setOrderStatus } from '../../../../lib/store';
+import { createOrder, releaseStock, reserveStock, setOrderPreference, setOrderStatus } from '../../../../lib/store';
 import { defaultProductColor, productColors, productSizes } from '../../../../lib/product-variants';
 import { normalizeColor, normalizeSize, variantKey, variantStock } from '../../../../lib/variants';
 import { isPaymentMethod, orderTotals, unitPriceFor, type PaymentMethod } from '../../../../lib/pricing';
@@ -45,9 +45,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'O pagamento seguro ainda não está configurado. Tente novamente mais tarde.' }, { status: 503 });
 
   let orderId: string | undefined;
+  let reservedItems: { id: string; size: string; color?: string; quantity: number }[] = [];
   try {
     const user = await requireUser();
-    if (!checkRateLimit(`payment:${user.id}:${requestClientKey(req)}`, 8, 10 * 60 * 1000)) {
+    if (!(await checkRateLimit(`payment:${user.id}:${requestClientKey(req)}`, 8, 10 * 60 * 1000))) {
       return NextResponse.json({ error: 'Muitas tentativas de pagamento. Aguarde alguns minutos e tente novamente.' }, { status: 429 });
     }
 
@@ -136,6 +137,15 @@ export async function POST(req: Request) {
     const totals = orderTotals(items, shipping.price, paymentMethod);
     if (!Number.isFinite(totals.total) || totals.total <= 0) throw new PaymentInputError('Não foi possível calcular o total do pedido.');
 
+    // A reserva vem antes do pedido: é o banco que decide quem ficou com a
+    // última peça, não a leitura do catálogo feita alguns instantes atrás.
+    const reserved = await reserveStock(items);
+    if (reserved) reservedItems = items;
+    if (!reserved)
+      throw new PaymentInputError(
+        'Uma das peças da sua sacola acabou de ser reservada por outra cliente. Revise a sacola e tente novamente.',
+      );
+
     const order = await createOrder(user.id, {
       items,
       shipping,
@@ -210,7 +220,10 @@ export async function POST(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Não foi possível conectar ao Mercado Pago.';
     const status = error instanceof PaymentInputError ? 400 : message === 'Não autorizado' ? 401 : 502;
+    // Cancelar o pedido já devolve a reserva. Quando a falha acontece antes de
+    // o pedido existir, a devolução precisa ser feita aqui.
     if (orderId) await setOrderStatus(orderId, 'CANCELLED').catch(() => undefined);
+    else if (reservedItems.length) await releaseStock(reservedItems).catch(() => undefined);
     return NextResponse.json(
       { error: status === 502 ? 'Não foi possível iniciar o pagamento no momento. Tente novamente em instantes.' : message },
       { status },

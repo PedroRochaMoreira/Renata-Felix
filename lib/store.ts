@@ -385,6 +385,8 @@ async function ensureSchema() {
         `CREATE INDEX IF NOT EXISTS rf_sessions_user_idx ON rf_sessions (user_id)`,
         `CREATE TABLE IF NOT EXISTS rf_products (id TEXT PRIMARY KEY, name TEXT NOT NULL, price NUMERIC(12,2) NOT NULL CHECK (price > 0), category TEXT NOT NULL, color TEXT NOT NULL, img TEXT NOT NULL, images JSONB NOT NULL DEFAULT '[]'::jsonb, sizes JSONB NOT NULL DEFAULT '[]'::jsonb, description TEXT NOT NULL, tag TEXT, is_new BOOLEAN NOT NULL DEFAULT FALSE, stock INTEGER NOT NULL DEFAULT 10 CHECK (stock >= 0), deleted BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
         `CREATE TABLE IF NOT EXISTS rf_inventory (product_id TEXT PRIMARY KEY, stock INTEGER NOT NULL CHECK (stock >= 0), deleted BOOLEAN NOT NULL DEFAULT FALSE, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
+        `CREATE TABLE IF NOT EXISTS rf_rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at TIMESTAMPTZ NOT NULL)`,
+        `CREATE INDEX IF NOT EXISTS rf_rate_limits_reset_idx ON rf_rate_limits (reset_at)`,
         `CREATE TABLE IF NOT EXISTS rf_variants (product_id TEXT NOT NULL, size TEXT NOT NULL, color TEXT NOT NULL, stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (product_id, size, color))`,
         `CREATE INDEX IF NOT EXISTS rf_variants_product_idx ON rf_variants (product_id)`,
         `CREATE TABLE IF NOT EXISTS rf_product_overrides (product_id TEXT PRIMARY KEY, data JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
@@ -408,6 +410,10 @@ async function ensureSchema() {
       // Pedidos anteriores ao desconto do PIX nasceram sem método e sem abatimento.
       await db.query(`ALTER TABLE rf_orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'OTHER'`);
       await db.query(`ALTER TABLE rf_orders ADD COLUMN IF NOT EXISTS discount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+      // Sem reserva, o estoque só baixava na aprovação: duas clientes podiam
+      // pagar a mesma última peça na janela entre o pedido e a confirmação.
+      await db.query(`ALTER TABLE rf_variants ADD COLUMN IF NOT EXISTS reserved INTEGER NOT NULL DEFAULT 0 CHECK (reserved >= 0)`);
+      await db.query(`ALTER TABLE rf_orders ADD COLUMN IF NOT EXISTS stock_settled BOOLEAN NOT NULL DEFAULT FALSE`);
       await db.query(`ALTER TABLE rf_order_items DROP CONSTRAINT IF EXISTS rf_order_items_order_id_product_id_size_key`);
       await db.query(
         `CREATE UNIQUE INDEX IF NOT EXISTS rf_order_items_order_product_size_color_idx ON rf_order_items (order_id, product_id, size, color)`,
@@ -478,18 +484,18 @@ async function syncProductStock(productId: string) {
 }
 
 function fromRowVariant(row: Row): Variant {
-  return {
-    size: normalizeSize(readString(row.size)),
-    color: normalizeColor(readString(row.color)),
-    stock: Math.max(0, Math.floor(asNumber(row.stock))),
-  };
+  const stock = Math.max(0, Math.floor(asNumber(row.stock)));
+  const reserved = Math.max(0, Math.floor(asNumber(row.reserved)));
+  // A vitrine enxerga o que dá para comprar agora, e não o que existe na
+  // prateleira: peças reservadas por pedidos aguardando pagamento não contam.
+  return { size: normalizeSize(readString(row.size)), color: normalizeColor(readString(row.color)), stock: Math.max(0, stock - reserved) };
 }
 
 /** A grade de tamanhos e cores de cada peça, indexada pelo id do produto. */
 export async function allVariants(): Promise<Record<string, Variant[]>> {
   if (!sql) return localRead().variants;
   await ensureSchema();
-  const rows = await database()`SELECT product_id, size, color, stock FROM rf_variants ORDER BY product_id, color, size`;
+  const rows = await database()`SELECT product_id, size, color, stock, reserved FROM rf_variants ORDER BY product_id, color, size`;
   const grouped: Record<string, Variant[]> = {};
   for (const row of rows as Row[]) {
     const id = readString(row.product_id);
@@ -554,6 +560,126 @@ export async function setVariantStock(productId: string, size: string, color: st
   return saveProductVariants(productId, next);
 }
 
+/**
+ * Conta uma tentativa e devolve quantas já ocorreram na janela atual. O
+ * contador vive no banco porque cada requisição na Vercel pode cair numa
+ * instância diferente: em memória, o limite de tentativas de login
+ * simplesmente não existiria em produção.
+ */
+export async function consumeRateLimit(key: string, windowMs: number) {
+  await ensureSchema();
+  const db = database();
+  const seconds = Math.max(1, Math.ceil(windowMs / 1000));
+  const rows = await db`
+    INSERT INTO rf_rate_limits (key, count, reset_at)
+    VALUES (${key}, 1, NOW() + make_interval(secs => ${seconds}))
+    ON CONFLICT (key) DO UPDATE SET
+      count = CASE WHEN rf_rate_limits.reset_at <= NOW() THEN 1 ELSE rf_rate_limits.count + 1 END,
+      reset_at = CASE WHEN rf_rate_limits.reset_at <= NOW() THEN NOW() + make_interval(secs => ${seconds}) ELSE rf_rate_limits.reset_at END
+    RETURNING count`;
+  return Math.max(1, Math.floor(asNumber((rows[0] as Row | undefined)?.count, 1)));
+}
+
+/** Descarta janelas vencidas para a tabela não crescer sem limite. */
+export async function pruneRateLimits() {
+  await ensureSchema();
+  await database()`DELETE FROM rf_rate_limits WHERE reset_at <= NOW() - INTERVAL '1 day'`;
+}
+
+export function rateLimitStorageReady() {
+  return Boolean(sql);
+}
+
+export type ReservationItem = { id: string; size: string; color?: string; quantity: number };
+
+/**
+ * Segura as peças de um pedido enquanto o pagamento não é confirmado. Cada
+ * combinação é reservada por um UPDATE condicional, que só passa se ainda
+ * houver saldo: é o banco, e não a leitura anterior do catálogo, que decide
+ * quem ficou com a última peça. Se qualquer item faltar, as reservas já
+ * feitas são devolvidas e o pedido não nasce.
+ */
+export async function reserveStock(items: ReservationItem[]) {
+  if (!sql) return true;
+  await ensureSchema();
+  const db = database();
+  const done: ReservationItem[] = [];
+  for (const item of items) {
+    const size = normalizeSize(item.size);
+    const color = normalizeColor(item.color || '');
+    const quantity = Math.max(1, Math.floor(asNumber(item.quantity, 1)));
+    const rows = await db`UPDATE rf_variants SET reserved = reserved + ${quantity}, updated_at = NOW()
+      WHERE product_id = ${item.id} AND size = ${size} AND color = ${color} AND stock - reserved >= ${quantity}
+      RETURNING product_id`;
+    if (!rows.length) {
+      await releaseStock(done);
+      return false;
+    }
+    done.push({ ...item, size, color, quantity });
+  }
+  return true;
+}
+
+/** Devolve ao catálogo as peças que estavam seguradas por um pedido. */
+export async function releaseStock(items: ReservationItem[]) {
+  if (!sql || !items.length) return;
+  const db = database();
+  for (const item of items) {
+    await db`UPDATE rf_variants SET reserved = GREATEST(0, reserved - ${Math.max(1, Math.floor(asNumber(item.quantity, 1)))}), updated_at = NOW()
+      WHERE product_id = ${item.id} AND size = ${normalizeSize(item.size)} AND color = ${normalizeColor(item.color || '')}`;
+  }
+}
+
+/**
+ * Devolve as reservas de pedidos que ficaram aguardando pagamento por tempo
+ * demais. Sem isso, uma cliente que abandona o checkout deixaria a peça presa
+ * para sempre.
+ */
+export async function expireStaleReservations(minutes = 60) {
+  if (!sql) return 0;
+  await ensureSchema();
+  const db = database();
+  const stale =
+    await db`SELECT id FROM rf_orders WHERE status = 'PENDING' AND stock_settled = FALSE AND created_at <= NOW() - make_interval(mins => ${Math.max(1, Math.floor(minutes))})`;
+  let released = 0;
+  for (const row of stale as Row[]) {
+    const orderId = readString(row.id);
+    const items =
+      await db`SELECT product_id, size, color, SUM(quantity)::int AS quantity FROM rf_order_items WHERE order_id = ${orderId} GROUP BY product_id, size, color`;
+    await releaseStock(
+      (items as Row[]).map(item => ({
+        id: readString(item.product_id),
+        size: readString(item.size),
+        color: readString(item.color),
+        quantity: asNumber(item.quantity, 1),
+      })),
+    );
+    await db`UPDATE rf_orders SET status = 'CANCELLED', stock_settled = TRUE, updated_at = NOW() WHERE id = ${orderId} AND status = 'PENDING'`;
+    for (const item of items as Row[]) await syncProductStock(readString(item.product_id));
+    released += 1;
+  }
+  return released;
+}
+
+/**
+ * Decide se a conta nasce administrativa. Com ADMIN_EMAIL configurado, só
+ * aquele endereço recebe o acesso. Sem ele, a primeira conta criada assumia o
+ * comando da loja: isso continua valendo em desenvolvimento, mas em produção
+ * seria entregar a loja a quem se cadastrasse primeiro, então lá o cadastro é
+ * recusado até a variável ser configurada.
+ */
+async function resolveRole(email: string, isFirstAccount: () => Promise<boolean>): Promise<PublicUser['role']> {
+  const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (ownerEmail) return email === ownerEmail ? 'ADMIN' : 'CUSTOMER';
+  if (!(await isFirstAccount())) return 'CUSTOMER';
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'A loja ainda não tem uma conta responsável configurada. Defina ADMIN_EMAIL nas variáveis do projeto antes do primeiro cadastro.',
+    );
+  }
+  return 'ADMIN';
+}
+
 export async function createUser(name: string, email: string, password: string) {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
@@ -562,11 +688,10 @@ export async function createUser(name: string, email: string, password: string) 
   if (!passwordIsStrong(password)) throw new Error('A senha deve ter 10 caracteres, com maiúscula, minúscula, número e símbolo.');
   const salt = randomBytes(16).toString('hex');
   const passwordHash = `${salt}:${scryptSync(password, salt, 64).toString('hex')}`;
-  const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   if (!sql) {
     const local = localRead();
     if (local.users.some(user => user.email === cleanEmail)) throw new Error('Já existe uma conta com este e-mail.');
-    const role = ownerEmail ? (cleanEmail === ownerEmail ? 'ADMIN' : 'CUSTOMER') : local.users.length === 0 ? 'ADMIN' : 'CUSTOMER';
+    const role = await resolveRole(cleanEmail, async () => local.users.length === 0);
     const user: User = {
       id: randomBytes(12).toString('hex'),
       name: cleanName,
@@ -584,14 +709,10 @@ export async function createUser(name: string, email: string, password: string) 
   const db = database();
   const existing = await db`SELECT id FROM rf_users WHERE email = ${cleanEmail}`;
   if (existing.length) throw new Error('Já existe uma conta com este e-mail.');
-  const countRows = ownerEmail ? [] : await db`SELECT COUNT(*)::int AS count FROM rf_users`;
-  const role: PublicUser['role'] = ownerEmail
-    ? cleanEmail === ownerEmail
-      ? 'ADMIN'
-      : 'CUSTOMER'
-    : asNumber((countRows[0] as Row | undefined)?.count) === 0
-      ? 'ADMIN'
-      : 'CUSTOMER';
+  const role: PublicUser['role'] = await resolveRole(cleanEmail, async () => {
+    const rows = await db`SELECT COUNT(*)::int AS count FROM rf_users`;
+    return asNumber((rows[0] as Row | undefined)?.count) === 0;
+  });
   const id = randomBytes(12).toString('hex');
   const rows =
     await db`INSERT INTO rf_users (id, name, email, password_hash, role, email_verified) VALUES (${id}, ${cleanName}, ${cleanEmail}, ${passwordHash}, ${role}, FALSE) RETURNING *`;
@@ -934,8 +1055,8 @@ export async function setOrderStatus(orderId: string, status: OrderStatus, payme
   await ensureSchema();
   const db = database();
   const updated =
-    await db`UPDATE rf_orders SET status = ${status}, payment_id = COALESCE(${paymentId || null}, payment_id), updated_at = NOW() WHERE id = ${orderId} AND status <> 'APPROVED' RETURNING id`;
-  if (updated.length && status === 'APPROVED') {
+    await db`UPDATE rf_orders SET status = ${status}, payment_id = COALESCE(${paymentId || null}, payment_id), updated_at = NOW() WHERE id = ${orderId} AND status <> 'APPROVED' RETURNING id, stock_settled`;
+  if (updated.length && status !== 'PENDING' && !Boolean((updated[0] as Row).stock_settled)) {
     // A baixa é por tamanho e cor: descontar apenas por peça deixava um
     // tamanho esgotado à venda enquanto outro ainda tivesse estoque.
     const items =
@@ -946,9 +1067,16 @@ export async function setOrderStatus(orderId: string, status: OrderStatus, payme
       const size = normalizeSize(readString(item.size));
       const color = normalizeColor(readString(item.color));
       const quantity = Math.max(1, Math.floor(asNumber(item.quantity, 1)));
-      await db`UPDATE rf_variants SET stock = GREATEST(0, stock - ${quantity}), updated_at = NOW() WHERE product_id = ${productId} AND size = ${size} AND color = ${color}`;
+      // A peça já está reservada desde a criação do pedido. Aprovar tira do
+      // estoque e da reserva; recusar ou cancelar apenas devolve a reserva.
+      await (status === 'APPROVED'
+        ? db`UPDATE rf_variants SET stock = GREATEST(0, stock - ${quantity}), reserved = GREATEST(0, reserved - ${quantity}), updated_at = NOW() WHERE product_id = ${productId} AND size = ${size} AND color = ${color}`
+        : db`UPDATE rf_variants SET reserved = GREATEST(0, reserved - ${quantity}), updated_at = NOW() WHERE product_id = ${productId} AND size = ${size} AND color = ${color}`);
       touched.add(productId);
     }
+    // A marca impede que uma segunda notificação do provedor baixe o estoque
+    // outra vez, ou devolva uma reserva que já foi consumida.
+    await db`UPDATE rf_orders SET stock_settled = TRUE WHERE id = ${orderId}`;
     for (const productId of touched) await syncProductStock(productId);
   }
   return (await databaseOrders()).find(order => order.id === orderId) || null;

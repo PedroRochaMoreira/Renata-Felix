@@ -39,7 +39,10 @@ function signatureParts(signature: string) {
 
 function isValidSignature(req: Request, paymentId: string) {
   const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET?.trim();
-  if (!secret) return true;
+  // Em produção, a ausência do segredo é falha de configuração e não licença
+  // para aceitar notificação sem assinatura. Em desenvolvimento continua
+  // possível testar o fluxo sem configurar a chave.
+  if (!secret) return process.env.NODE_ENV !== 'production';
   const signature = req.headers.get('x-signature');
   const requestId = req.headers.get('x-request-id');
   if (!signature || !requestId) return false;
