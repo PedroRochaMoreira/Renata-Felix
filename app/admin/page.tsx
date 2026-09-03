@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, ImagePlus, PackagePlus, Pencil, Trash2 } from 'lucide-react';
+import { ArrowUpRight, ImagePlus, LayoutGrid, PackagePlus, Pencil, Trash2 } from 'lucide-react';
 import { Footer, Header } from '../components';
-import { Product } from '../data';
+import { Product, ProductVariant } from '../data';
 import { productColors, productColorTone } from '../../lib/product-variants';
+import { totalStock } from '../../lib/variants';
 
 type User = { name: string; role: string };
 
@@ -35,6 +36,7 @@ export default function Admin() {
   const [color, setColor] = useState('Preto');
   const [customColor, setCustomColor] = useState('');
   const [message, setMessage] = useState('');
+  const [openGrade, setOpenGrade] = useState<string | null>(null);
 
   const reload = () => Promise.all([
     fetch('/api/auth/me').then(response => response.json()),
@@ -109,6 +111,7 @@ export default function Admin() {
     flash(`${data.user.name} agora tem acesso administrativo.`);
   }
 
+  /** Ajuste rápido: reparte o total informado entre os tamanhos e cores da peça. */
   async function updateStock(id: string, stock: number) {
     const response = await fetch('/api/admin/inventory', {
       method: 'PATCH',
@@ -116,8 +119,22 @@ export default function Admin() {
       body: JSON.stringify({ id, stock }),
     });
     if (!response.ok) return flash('Não foi possível atualizar o estoque.');
-    setItems(current => current.map(item => item.id === id ? { ...item, stock } : item));
-    flash(stock === 0 ? 'Peça marcada como esgotada.' : 'Estoque atualizado.');
+    await reload();
+    flash(stock === 0 ? 'Peça marcada como esgotada.' : 'Estoque repartido entre os tamanhos e cores.');
+  }
+
+  /** Ajuste fino: define quantas peças existem de um tamanho e cor específicos. */
+  async function updateVariant(id: string, size: string, color: string, stock: number) {
+    const response = await fetch('/api/admin/inventory', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id, size, color, stock }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return flash(data.error || 'Não foi possível atualizar o estoque.');
+    const variants: ProductVariant[] = data.variants || [];
+    setItems(current => current.map(item => item.id === id ? { ...item, variants, stock: totalStock(variants) } : item));
+    flash(`${size} · ${color}: ${stock} peça(s) em estoque.`);
   }
 
   async function removeItem(id: string) {
@@ -186,7 +203,31 @@ export default function Admin() {
 
       <section className="inventoryPanel">
         <div className="inventoryHeading"><div><span className="eyebrow">Controle de estoque</span><h2 className="serif">Suas peças</h2><p className="info">Edite cada anúncio, altere o estoque ou retire uma peça da loja.</p></div><span>{items.length} itens</span></div>
-        <div className="inventoryList">{items.map(item => <article key={item.id}><img src={item.img} alt="" /><div><b>{item.name}</b><small>{item.cat} · {item.color}</small></div><label className="stockControl"><span>Estoque</span><input aria-label={`Estoque de ${item.name}`} type="number" min="0" defaultValue={item.stock} onBlur={event => updateStock(item.id, Number(event.target.value))} /></label><span className={`stockStatus ${item.stock === 0 ? 'soldOut' : ''}`}>{item.stock === 0 ? 'Esgotado' : `${item.stock} em estoque`}</span><div className="inventoryActions"><Link className="textLink" href={`/admin/produto/${item.id}`}><Pencil size={13} /> Editar</Link><button className="textLink" onClick={() => updateStock(item.id, 0)}>Esgotar</button><button className="removeProduct" onClick={() => removeItem(item.id)} aria-label={`Excluir ${item.name}`}><Trash2 size={15} /></button></div></article>)}</div>
+        <div className="inventoryList">{items.map(item => {
+          const grade = item.variants || [];
+          const expanded = openGrade === item.id;
+          return <article key={item.id}>
+            <div className="inventoryRow">
+              <img src={item.img} alt="" />
+              <div><b>{item.name}</b><small>{item.cat} · {item.color}</small></div>
+              <label className="stockControl"><span>Total</span><input aria-label={`Estoque total de ${item.name}`} type="number" min="0" defaultValue={item.stock} onBlur={event => { const value = Number(event.target.value); if (value !== item.stock) updateStock(item.id, value); }} /></label>
+              <span className={`stockStatus ${item.stock === 0 ? 'soldOut' : ''}`}>{item.stock === 0 ? 'Esgotado' : `${item.stock} em estoque`}</span>
+              <div className="inventoryActions">
+                {grade.length > 0 && <button className="textLink" type="button" onClick={() => setOpenGrade(expanded ? null : item.id)} aria-expanded={expanded}><LayoutGrid size={13} /> {expanded ? 'Fechar grade' : 'Grade'}</button>}
+                <Link className="textLink" href={`/admin/produto/${item.id}`}><Pencil size={13} /> Editar</Link>
+                <button className="textLink" type="button" onClick={() => updateStock(item.id, 0)}>Esgotar</button>
+                <button className="removeProduct" type="button" onClick={() => removeItem(item.id)} aria-label={`Excluir ${item.name}`}><Trash2 size={15} /></button>
+              </div>
+            </div>
+            {expanded && <div className="variantGrid">
+              <p className="info">Informe quantas peças existem de cada tamanho e cor. O total acima é a soma da grade.</p>
+              <div className="variantGridRows">{grade.map(variant => <label className="variantCell" key={`${variant.size}-${variant.color}`}>
+                <span className="variantCellLabel"><i className="adminColorTone" style={{ backgroundColor: productColorTone(variant.color) }} aria-hidden="true" />{variant.color} · {variant.size}</span>
+                <input type="number" min="0" defaultValue={variant.stock} aria-label={`Estoque de ${item.name}, cor ${variant.color}, tamanho ${variant.size}`} onBlur={event => { const value = Number(event.target.value); if (Number.isFinite(value) && value !== variant.stock) updateVariant(item.id, variant.size, variant.color, value); }} />
+              </label>)}</div>
+            </div>}
+          </article>;
+        })}</div>
       </section>
 
       {message && <p className="notice adminNotice">{message}</p>}

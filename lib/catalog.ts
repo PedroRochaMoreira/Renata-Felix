@@ -1,5 +1,6 @@
 import { products, type Product } from '../app/data';
-import { inventory, listProducts, overrides } from './store';
+import { allVariants, inventory, listProducts, overrides } from './store';
+import { buildVariants, reconcileVariants, totalStock } from './variants';
 
 function validImages(images: unknown, fallback: string) {
   const list = Array.isArray(images) ? images : [];
@@ -14,14 +15,23 @@ function validImages(images: unknown, fallback: string) {
  */
 export async function getCatalog(): Promise<Product[]> {
   try {
-    const [stock, edited, customProducts] = await Promise.all([inventory(), overrides(), listProducts()]);
+    const [stock, edited, customProducts, grades] = await Promise.all([inventory(), overrides(), listProducts(), allVariants()]);
     return [...customProducts, ...products].filter(product => !stock[product.id]?.deleted).map(product => {
       const merged = { ...product, ...edited[product.id] } as Product;
       const images = validImages(merged.images, merged.img);
-      return { ...merged, img: images[0], images, stock: stock[product.id]?.stock ?? merged.stock ?? 10 };
+      const saved = grades[product.id];
+      // O estoque verdadeiro é o da grade de tamanho e cor. O número por peça
+      // continua exposto porque a vitrine só precisa saber se ainda há algo.
+      const variants = saved?.length
+        ? reconcileVariants(merged, saved)
+        : buildVariants(merged, stock[product.id]?.stock ?? merged.stock ?? 10);
+      return { ...merged, img: images[0], images, variants, stock: totalStock(variants) };
     });
   } catch {
-    return products.map(product => ({ ...product, images: validImages(product.images, product.img), stock: product.stock ?? 10 }));
+    return products.map(product => {
+      const variants = buildVariants(product, product.stock ?? 10);
+      return { ...product, images: validImages(product.images, product.img), variants, stock: totalStock(variants) };
+    });
   }
 }
 

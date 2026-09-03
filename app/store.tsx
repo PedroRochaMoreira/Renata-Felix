@@ -64,8 +64,8 @@ function stockLimit(value: number | undefined) {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value as number)) : 99;
 }
 
-function quantityForProduct(lines: CartLine[], id: string) {
-  return lines.filter(line => line.id === id).reduce((total, line) => total + line.qty, 0);
+function quantityForVariant(lines: CartLine[], id: string, size: string, color = '') {
+  return lines.filter(line => sameCartLine(line, id, size, color)).reduce((total, line) => total + line.qty, 0);
 }
 
 function persistFavorites(next: string[]) {
@@ -101,18 +101,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (hydrated) localStorage.setItem('rf-favorites', JSON.stringify(favorites)); }, [favorites, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem('rf-shipping', JSON.stringify(shipping)); }, [shipping, hydrated]);
 
+  // O limite é da variante escolhida: o estoque de um tamanho não empresta
+  // peças para outro tamanho da mesma modelagem.
   const add = (id: string, size: string, maxQuantity = 99, color = '') => setCart(current => {
     const limit = stockLimit(maxQuantity);
-    if (quantityForProduct(current, id) >= limit) return current;
+    if (quantityForVariant(current, id, size, color) >= limit) return current;
     const existing = current.find(item => sameCartLine(item, id, size, color));
     if (existing) return current.map(item => sameCartLine(item, id, size, color) ? { ...item, qty: item.qty + 1 } : item);
     return [...current, { id, size, color: color || undefined, qty: 1 }];
   });
 
   const setQuantity = (id: string, size: string, quantity: number, maxQuantity = 99, color = '') => setCart(current => {
-    const limit = stockLimit(maxQuantity);
-    const otherQuantity = current.filter(item => item.id === id && !sameCartLine(item, id, size, color)).reduce((total, item) => total + item.qty, 0);
-    const nextQuantity = Math.min(Math.max(0, Math.floor(quantity)), Math.max(0, limit - otherQuantity));
+    const nextQuantity = Math.min(Math.max(0, Math.floor(quantity)), stockLimit(maxQuantity));
     if (nextQuantity <= 0) return current.filter(item => !sameCartLine(item, id, size, color));
     return current.map(item => sameCartLine(item, id, size, color) ? { ...item, qty: nextQuantity } : item);
   });
@@ -126,8 +126,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const source = current.find(item => sameCartLine(item, id, safeSize, safeColor));
     if (!source) return current;
     const target = current.find(item => sameCartLine(item, id, safeNextSize, safeNextColor));
-    const otherLines = current.filter(item => item.id === id && item !== source && item !== target);
-    const mergedQuantity = Math.min(source.qty + (target?.qty || 0), Math.max(0, stockLimit(maxQuantity) - quantityForProduct(otherLines, id)));
+    // maxQuantity já é o estoque da variante de destino, então a soma das duas
+    // linhas só pode ir até onde o novo tamanho e cor permitem.
+    const mergedQuantity = Math.min(source.qty + (target?.qty || 0), stockLimit(maxQuantity));
     const withoutOldVariants = current.filter(item => item !== source && item !== target);
     return mergedQuantity > 0 ? [...withoutOldVariants, { id, size: safeNextSize, color: safeNextColor || undefined, qty: mergedQuantity }] : withoutOldVariants;
   });

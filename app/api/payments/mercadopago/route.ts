@@ -6,6 +6,7 @@ import { checkRateLimit, requestClientKey } from '../../../../lib/rate-limit';
 import { quoteShipping } from '../../../../lib/shipping';
 import { createOrder, setOrderPreference, setOrderStatus } from '../../../../lib/store';
 import { defaultProductColor, productColors, productSizes } from '../../../../lib/product-variants';
+import { normalizeColor, normalizeSize, variantKey, variantStock } from '../../../../lib/variants';
 
 export const runtime = 'nodejs';
 
@@ -57,16 +58,16 @@ export async function POST(req: Request) {
     const selectedItems: Required<CartItem>[] = [];
     for (const item of body.items) {
       const id = safeString(item?.id, 128);
-      const size = safeString(item?.size, 32);
-      const requestedColor = safeString(item?.color, 60);
+      const size = normalizeSize(safeString(item?.size, 32));
+      const requestedColor = normalizeColor(safeString(item?.color, 60));
       const quantity = Number(item?.quantity);
       if (!id || !size || !Number.isInteger(quantity) || quantity < 1 || quantity > 20) {
         throw new PaymentInputError('Há uma quantidade ou tamanho inválido na sua sacola.');
       }
       const product = catalog.find(entry => entry.id === id);
       if (!product || product.stock === 0) throw new PaymentInputError('Uma das peças da sua sacola não está mais disponível.');
-      const colors = productColors(product);
-      const color = requestedColor || defaultProductColor(product);
+      const colors = productColors(product).map(normalizeColor);
+      const color = requestedColor || normalizeColor(defaultProductColor(product));
       if (!colors.includes(color)) throw new PaymentInputError(`A cor selecionada para ${product.name} não está mais disponível.`);
       if (!productSizes(product).includes(size)) throw new PaymentInputError(`O tamanho selecionado para ${product.name} não está mais disponível.`);
       selectedItems.push({ id, size, color, quantity });
@@ -74,20 +75,31 @@ export async function POST(req: Request) {
 
     const merged = new Map<string, Required<CartItem>>();
     for (const item of selectedItems) {
-      const key = `${item.id}:${item.size}:${item.color}`;
+      const key = `${item.id}:${variantKey(item.size, item.color)}`;
       const current = merged.get(key);
       const totalQuantity = (current?.quantity || 0) + item.quantity;
       if (totalQuantity > 20) throw new PaymentInputError('Limite de 20 unidades por peça e tamanho em cada compra.');
       merged.set(key, { ...item, quantity: totalQuantity });
     }
 
-    const quantitiesByProduct = new Map<string, number>();
-    for (const item of merged.values()) quantitiesByProduct.set(item.id, (quantitiesByProduct.get(item.id) || 0) + item.quantity);
+    // A conferência é por tamanho e cor: somar apenas por peça deixava passar
+    // um pedido de um tamanho esgotado enquanto outro ainda tinha estoque.
+    const quantitiesByVariant = new Map<string, number>();
+    for (const item of merged.values()) {
+      const key = `${item.id}:${variantKey(item.size, item.color)}`;
+      quantitiesByVariant.set(key, (quantitiesByVariant.get(key) || 0) + item.quantity);
+    }
     const items = [...merged.values()].map(item => {
       const product = catalog.find(entry => entry.id === item.id);
       if (!product || product.stock === 0) throw new PaymentInputError('Uma das peças da sua sacola não está mais disponível.');
       if (!Number.isFinite(product.price) || product.price <= 0) throw new PaymentInputError('Uma peça da sacola tem um preço inválido. Atualize a página e tente novamente.');
-      if ((quantitiesByProduct.get(item.id) || 0) > (product.stock ?? 0)) throw new PaymentInputError(`${product.name} não possui essa quantidade disponível.`);
+      const available = variantStock(product.variants || [], item.size, item.color);
+      const wanted = quantitiesByVariant.get(`${item.id}:${variantKey(item.size, item.color)}`) || 0;
+      if (wanted > available) {
+        throw new PaymentInputError(available === 0
+          ? `${product.name} na cor ${item.color} e tamanho ${item.size} acabou de esgotar.`
+          : `${product.name} na cor ${item.color} tem apenas ${available} peça(s) no tamanho ${item.size}.`);
+      }
       return { id: product.id, name: product.name, size: item.size, color: item.color, quantity: item.quantity, unitPrice: product.price };
     });
 

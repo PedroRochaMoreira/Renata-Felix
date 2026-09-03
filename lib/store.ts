@@ -2,6 +2,8 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import { neon } from '@neondatabase/serverless';
+import { products as baseProducts } from '../app/data';
+import { buildVariants, distributeStock, normalizeColor, normalizeSize, reconcileVariants, totalStock, type Variant } from './variants';
 
 export type StoredProduct = {
   id: string;
@@ -51,6 +53,7 @@ type Db = {
   products: StoredProduct[];
   featuredIds: string[];
   inventory: Record<string, { stock: number; deleted?: boolean }>;
+  variants: Record<string, Variant[]>;
   overrides: Record<string, Partial<StoredProduct>>;
   orders: Order[];
   subscribers: { email: string; createdAt: string }[];
@@ -65,7 +68,7 @@ type AdminOrder = Order & { customer: PublicUser | null };
 
 const file = path.join(process.cwd(), 'data', 'renata-felix.json');
 const empty = (): Db => ({
-  users: [], sessions: [], products: [], featuredIds: [], inventory: {}, overrides: {}, orders: [],
+  users: [], sessions: [], products: [], featuredIds: [], inventory: {}, variants: {}, overrides: {}, orders: [],
   subscribers: [], messages: [], passwordResetTokens: [], emailVerificationTokens: [], favorites: {},
 });
 
@@ -76,7 +79,7 @@ let schemaReady: Promise<void> | null = null;
 function normalize(db: Partial<Db>): Db {
   return {
     users: db.users || [], sessions: db.sessions || [], products: db.products || [], featuredIds: db.featuredIds || [],
-    inventory: db.inventory || {}, overrides: db.overrides || {}, orders: db.orders || [], subscribers: db.subscribers || [],
+    inventory: db.inventory || {}, variants: db.variants || {}, overrides: db.overrides || {}, orders: db.orders || [], subscribers: db.subscribers || [],
     messages: db.messages || [], passwordResetTokens: db.passwordResetTokens || [],
     emailVerificationTokens: db.emailVerificationTokens || [], favorites: db.favorites || {},
   };
@@ -257,6 +260,34 @@ async function migrateLegacyStore() {
   await db`INSERT INTO rf_meta (key, value) VALUES ('legacy-json-v1', NOW()::text) ON CONFLICT (key) DO NOTHING`;
 }
 
+/**
+ * O estoque era um número único por peça, o que permitia vender um tamanho
+ * esgotado. Esta migração reparte o estoque existente entre as combinações de
+ * tamanho e cor sem alterar o total físico. A dona da loja deve revisar a
+ * distribuição no painel depois da primeira publicação.
+ */
+async function migrateVariants() {
+  const db = database();
+  const marker = await db`SELECT value FROM rf_meta WHERE key = 'variants-v1'`;
+  if (marker.length) return;
+
+  const stockRows = await db`SELECT product_id, stock FROM rf_inventory`;
+  const legacyStock = new Map((stockRows as Row[]).map(row => [readString(row.product_id), Math.max(0, Math.floor(asNumber(row.stock)))]));
+  const overrideRows = await db`SELECT product_id, data FROM rf_product_overrides`;
+  const edits = new Map((overrideRows as Row[]).map(row => [readString(row.product_id), (asRecord(row.data) || {}) as Partial<StoredProduct>]));
+  const customRows = await db`SELECT * FROM rf_products WHERE deleted = FALSE`;
+  const catalog = [...(customRows as Row[]).map(fromRowProduct), ...baseProducts];
+
+  for (const product of catalog) {
+    const merged = { ...product, ...edits.get(product.id) } as StoredProduct;
+    const total = legacyStock.get(product.id) ?? merged.stock ?? 10;
+    for (const variant of buildVariants(merged, total)) {
+      await db`INSERT INTO rf_variants (product_id, size, color, stock) VALUES (${product.id}, ${variant.size}, ${variant.color}, ${variant.stock}) ON CONFLICT (product_id, size, color) DO NOTHING`;
+    }
+  }
+  await db`INSERT INTO rf_meta (key, value) VALUES ('variants-v1', NOW()::text) ON CONFLICT (key) DO NOTHING`;
+}
+
 async function ensureSchema() {
   if (!sql) return;
   if (!schemaReady) schemaReady = (async () => {
@@ -268,6 +299,8 @@ async function ensureSchema() {
       `CREATE INDEX IF NOT EXISTS rf_sessions_user_idx ON rf_sessions (user_id)`,
       `CREATE TABLE IF NOT EXISTS rf_products (id TEXT PRIMARY KEY, name TEXT NOT NULL, price NUMERIC(12,2) NOT NULL CHECK (price > 0), category TEXT NOT NULL, color TEXT NOT NULL, img TEXT NOT NULL, images JSONB NOT NULL DEFAULT '[]'::jsonb, sizes JSONB NOT NULL DEFAULT '[]'::jsonb, description TEXT NOT NULL, tag TEXT, is_new BOOLEAN NOT NULL DEFAULT FALSE, stock INTEGER NOT NULL DEFAULT 10 CHECK (stock >= 0), deleted BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
       `CREATE TABLE IF NOT EXISTS rf_inventory (product_id TEXT PRIMARY KEY, stock INTEGER NOT NULL CHECK (stock >= 0), deleted BOOLEAN NOT NULL DEFAULT FALSE, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
+      `CREATE TABLE IF NOT EXISTS rf_variants (product_id TEXT NOT NULL, size TEXT NOT NULL, color TEXT NOT NULL, stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (product_id, size, color))`,
+      `CREATE INDEX IF NOT EXISTS rf_variants_product_idx ON rf_variants (product_id)`,
       `CREATE TABLE IF NOT EXISTS rf_product_overrides (product_id TEXT PRIMARY KEY, data JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
       `CREATE TABLE IF NOT EXISTS rf_featured (position SMALLINT PRIMARY KEY CHECK (position BETWEEN 0 AND 3), product_id TEXT NOT NULL UNIQUE)`,
       `CREATE TABLE IF NOT EXISTS rf_orders (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES rf_users(id), status TEXT NOT NULL CHECK (status IN ('PENDING','APPROVED','REJECTED','CANCELLED')), total NUMERIC(12,2) NOT NULL CHECK (total >= 0), payment_preference_id TEXT, payment_id TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
@@ -289,6 +322,7 @@ async function ensureSchema() {
     await db.query(`ALTER TABLE rf_order_items DROP CONSTRAINT IF EXISTS rf_order_items_order_id_product_id_size_key`);
     await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS rf_order_items_order_product_size_color_idx ON rf_order_items (order_id, product_id, size, color)`);
     await migrateLegacyStore();
+    await migrateVariants();
   })();
   await schemaReady;
 }
@@ -336,6 +370,86 @@ export async function overrides() {
   await ensureSchema();
   const rows = await database()`SELECT product_id, data FROM rf_product_overrides`;
   return Object.fromEntries((rows as Row[]).map(row => [readString(row.product_id), (asRecord(row.data) || {}) as Partial<StoredProduct>]));
+}
+
+/** Mantém o estoque total da peça igual à soma das suas variantes. */
+async function syncProductStock(productId: string) {
+  const db = database();
+  await db`INSERT INTO rf_inventory (product_id, stock, deleted)
+    VALUES (${productId}, COALESCE((SELECT SUM(stock)::int FROM rf_variants WHERE product_id = ${productId}), 0), FALSE)
+    ON CONFLICT (product_id) DO UPDATE SET stock = EXCLUDED.stock, updated_at = NOW()`;
+  await db`UPDATE rf_products SET stock = COALESCE((SELECT SUM(stock)::int FROM rf_variants WHERE product_id = ${productId}), 0), updated_at = NOW() WHERE id = ${productId}`;
+}
+
+function fromRowVariant(row: Row): Variant {
+  return {
+    size: normalizeSize(readString(row.size)),
+    color: normalizeColor(readString(row.color)),
+    stock: Math.max(0, Math.floor(asNumber(row.stock))),
+  };
+}
+
+/** A grade de tamanhos e cores de cada peça, indexada pelo id do produto. */
+export async function allVariants(): Promise<Record<string, Variant[]>> {
+  if (!sql) return localRead().variants;
+  await ensureSchema();
+  const rows = await database()`SELECT product_id, size, color, stock FROM rf_variants ORDER BY product_id, color, size`;
+  const grouped: Record<string, Variant[]> = {};
+  for (const row of rows as Row[]) {
+    const id = readString(row.product_id);
+    (grouped[id] ||= []).push(fromRowVariant(row));
+  }
+  return grouped;
+}
+
+export async function variantsForProduct(productId: string): Promise<Variant[]> {
+  if (!sql) return localRead().variants[productId] || [];
+  await ensureSchema();
+  const rows = await database()`SELECT product_id, size, color, stock FROM rf_variants WHERE product_id = ${productId} ORDER BY color, size`;
+  return (rows as Row[]).map(fromRowVariant);
+}
+
+/** Substitui a grade de uma peça e mantém o estoque total espelhado. */
+export async function saveProductVariants(productId: string, variants: Variant[]) {
+  const clean = variants.map(variant => ({
+    size: normalizeSize(variant.size),
+    color: normalizeColor(variant.color),
+    stock: Math.max(0, Math.floor(asNumber(variant.stock))),
+  })).filter(variant => variant.size && variant.color);
+  const total = totalStock(clean);
+
+  if (!sql) {
+    const local = localRead();
+    local.variants[productId] = clean;
+    local.inventory[productId] = { ...local.inventory[productId], stock: total };
+    const index = local.products.findIndex(product => product.id === productId);
+    if (index >= 0) local.products[index] = { ...local.products[index], stock: total };
+    localSave(local);
+    return clean;
+  }
+
+  await ensureSchema();
+  const db = database();
+  await db.transaction([
+    db`DELETE FROM rf_variants WHERE product_id = ${productId}`,
+    ...clean.map(variant => db`INSERT INTO rf_variants (product_id, size, color, stock) VALUES (${productId}, ${variant.size}, ${variant.color}, ${variant.stock})`),
+    db`INSERT INTO rf_inventory (product_id, stock, deleted) VALUES (${productId}, ${total}, FALSE) ON CONFLICT (product_id) DO UPDATE SET stock = EXCLUDED.stock, updated_at = NOW()`,
+    db`UPDATE rf_products SET stock = ${total}, updated_at = NOW() WHERE id = ${productId}`,
+  ]);
+  return clean;
+}
+
+/** Ajusta o estoque de uma única combinação de tamanho e cor. */
+export async function setVariantStock(productId: string, size: string, color: string, stock: number) {
+  const current = await variantsForProduct(productId);
+  const wantedSize = normalizeSize(size);
+  const wantedColor = normalizeColor(color);
+  const quantity = Math.max(0, Math.floor(asNumber(stock)));
+  const exists = current.some(variant => variant.size === wantedSize && variant.color === wantedColor);
+  const next = exists
+    ? current.map(variant => variant.size === wantedSize && variant.color === wantedColor ? { ...variant, stock: quantity } : variant)
+    : [...current, { size: wantedSize, color: wantedColor, stock: quantity }];
+  return saveProductVariants(productId, next);
 }
 
 export async function createUser(name: string, email: string, password: string) {
@@ -456,31 +570,62 @@ export async function updateUserProfile(userId: string, data: { name?: string; e
 
 export async function addProduct(product: Omit<StoredProduct, 'id'>) {
   const item: StoredProduct = { ...product, id: productId(), stock: Math.max(0, Math.floor(product.stock ?? 10)) };
-  if (!sql) { const local = localRead(); local.products.unshift(item); local.inventory[item.id] = { stock: item.stock! }; localSave(local); return item; }
+  if (!sql) {
+    const local = localRead();
+    local.products.unshift(item);
+    local.inventory[item.id] = { stock: item.stock! };
+    local.variants[item.id] = buildVariants(item, item.stock ?? 0);
+    localSave(local);
+    return item;
+  }
   await ensureSchema();
   const db = database();
   await db`INSERT INTO rf_products (id, name, price, category, color, img, images, sizes, description, tag, is_new, stock, deleted) VALUES (${item.id}, ${item.name}, ${item.price}, ${item.cat}, ${item.color}, ${item.img}, ${JSON.stringify(item.images || [item.img])}::jsonb, ${JSON.stringify(item.sizes || [])}::jsonb, ${item.desc}, ${item.tag || null}, ${Boolean(item.isNew)}, ${item.stock}, FALSE)`;
   await db`INSERT INTO rf_inventory (product_id, stock, deleted) VALUES (${item.id}, ${item.stock}, FALSE) ON CONFLICT (product_id) DO UPDATE SET stock = EXCLUDED.stock, deleted = FALSE, updated_at = NOW()`;
+  await saveProductVariants(item.id, buildVariants(item, item.stock ?? 0));
   return item;
+}
+
+/**
+ * Reaplica a grade da peça quando os tamanhos ou as cores mudam. O estoque das
+ * combinações que continuam existindo é preservado; as novas nascem zeradas
+ * para a dona da loja informar a quantidade real.
+ */
+async function syncVariantsWithProduct(id: string, product: { color: string; sizes?: string[] }) {
+  const current = await variantsForProduct(id);
+  if (!current.length) return;
+  await saveProductVariants(id, reconcileVariants(product, current));
 }
 
 export async function updateProduct(id: string, changes: Partial<Omit<StoredProduct, 'id'>>) {
   if (!sql) {
     const local = localRead(); const index = local.products.findIndex(product => product.id === id);
-    if (index >= 0) { local.products[index] = { ...local.products[index], ...changes }; localSave(local); return local.products[index]; }
-    local.overrides[id] = { ...(local.overrides[id] || {}), ...changes }; localSave(local); return local.overrides[id];
+    if (index >= 0) {
+      local.products[index] = { ...local.products[index], ...changes };
+      if (local.variants[id]?.length) local.variants[id] = reconcileVariants(local.products[index], local.variants[id]);
+      localSave(local);
+      return local.products[index];
+    }
+    local.overrides[id] = { ...(local.overrides[id] || {}), ...changes };
+    const edited = local.overrides[id];
+    if (edited.color && local.variants[id]?.length) local.variants[id] = reconcileVariants({ color: edited.color, sizes: edited.sizes }, local.variants[id]);
+    localSave(local);
+    return edited;
   }
   await ensureSchema();
   const db = database(); const rows = await db`SELECT * FROM rf_products WHERE id = ${id}`;
   if (rows.length) {
     const current = fromRowProduct(rows[0] as Row); const next = { ...current, ...changes };
     await db`UPDATE rf_products SET name = ${next.name}, price = ${next.price}, category = ${next.cat}, color = ${next.color}, img = ${next.img}, images = ${JSON.stringify(next.images || [next.img])}::jsonb, sizes = ${JSON.stringify(next.sizes || [])}::jsonb, description = ${next.desc}, tag = ${next.tag || null}, is_new = ${Boolean(next.isNew)}, stock = ${Math.max(0, Math.floor(next.stock ?? current.stock ?? 10))}, updated_at = NOW() WHERE id = ${id}`;
+    await syncVariantsWithProduct(id, next);
     return next;
   }
   const current = await db`SELECT data FROM rf_product_overrides WHERE product_id = ${id}`;
   const next = { ...(current.length ? (asRecord((current[0] as Row).data) || {}) : {}), ...changes };
   await db`INSERT INTO rf_product_overrides (product_id, data, updated_at) VALUES (${id}, ${JSON.stringify(next)}::jsonb, NOW()) ON CONFLICT (product_id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`;
-  return next as Partial<StoredProduct>;
+  const edited = next as Partial<StoredProduct>;
+  if (edited.color) await syncVariantsWithProduct(id, { color: edited.color, sizes: edited.sizes });
+  return edited;
 }
 
 export async function setFeatured(ids: string[]) {
@@ -499,8 +644,22 @@ export async function promoteAdmin(email: string) {
   if (!rows.length) throw new Error('Não existe uma conta criada com este e-mail.'); return publicUser(fromRowUser(rows[0] as Row));
 }
 
-export async function setStock(id: string, stock: number) {
+/**
+ * Define o estoque total da peça repartindo o valor entre as variantes que ela
+ * já oferece. Continua existindo para o ajuste rápido do painel; o controle
+ * fino de cada tamanho e cor é feito por setVariantStock.
+ */
+export async function setStock(id: string, stock: number, product?: { color: string; sizes?: string[] }) {
   const quantity = Math.max(0, Math.floor(stock));
+  const current = await variantsForProduct(id);
+  const grade = current.length ? current : (product ? buildVariants(product, 0) : []);
+  const shares = distributeStock(quantity, grade.length);
+  const next = grade.map((variant, index) => ({ ...variant, stock: shares[index] ?? 0 }));
+  if (next.length) {
+    await saveProductVariants(id, next);
+    return { stock: quantity };
+  }
+
   if (!sql) { const local = localRead(); local.inventory[id] = { ...local.inventory[id], stock: quantity }; localSave(local); return local.inventory[id]; }
   await ensureSchema(); const db = database();
   await db`INSERT INTO rf_inventory (product_id, stock, deleted) VALUES (${id}, ${quantity}, FALSE) ON CONFLICT (product_id) DO UPDATE SET stock = EXCLUDED.stock, updated_at = NOW()`;
@@ -540,18 +699,34 @@ export async function setOrderStatus(orderId: string, status: OrderStatus, payme
     const local = localRead(); const order = local.orders.find(item => item.id === orderId); if (!order) return null;
     if (order.status === 'APPROVED') return order;
     order.status = status; if (paymentId) order.paymentId = paymentId; order.updatedAt = new Date().toISOString();
-    if (status === 'APPROVED') for (const item of order.items) { const current = local.inventory[item.id] || { stock: 10 }; local.inventory[item.id] = { ...current, stock: Math.max(0, current.stock - item.quantity) }; }
+    if (status === 'APPROVED') for (const item of order.items) {
+      const grade = local.variants[item.id] || [];
+      const size = normalizeSize(item.size);
+      const color = normalizeColor(item.color || '');
+      local.variants[item.id] = grade.map(variant => variant.size === size && variant.color === color ? { ...variant, stock: Math.max(0, variant.stock - item.quantity) } : variant);
+      const total = totalStock(local.variants[item.id]);
+      local.inventory[item.id] = { ...local.inventory[item.id], stock: total };
+      const index = local.products.findIndex(product => product.id === item.id);
+      if (index >= 0) local.products[index] = { ...local.products[index], stock: total };
+    }
     localSave(local); return order;
   }
   await ensureSchema(); const db = database();
   const updated = await db`UPDATE rf_orders SET status = ${status}, payment_id = COALESCE(${paymentId || null}, payment_id), updated_at = NOW() WHERE id = ${orderId} AND status <> 'APPROVED' RETURNING id`;
   if (updated.length && status === 'APPROVED') {
-    const items = await db`SELECT product_id, SUM(quantity)::int AS quantity FROM rf_order_items WHERE order_id = ${orderId} GROUP BY product_id`;
+    // A baixa é por tamanho e cor: descontar apenas por peça deixava um
+    // tamanho esgotado à venda enquanto outro ainda tivesse estoque.
+    const items = await db`SELECT product_id, size, color, SUM(quantity)::int AS quantity FROM rf_order_items WHERE order_id = ${orderId} GROUP BY product_id, size, color`;
+    const touched = new Set<string>();
     for (const item of items as Row[]) {
-      const productId = readString(item.product_id); const quantity = Math.max(1, Math.floor(asNumber(item.quantity, 1)));
-      await db`INSERT INTO rf_inventory (product_id, stock, deleted) VALUES (${productId}, ${Math.max(0, 10 - quantity)}, FALSE) ON CONFLICT (product_id) DO UPDATE SET stock = GREATEST(0, rf_inventory.stock - ${quantity}), updated_at = NOW()`;
-      await db`UPDATE rf_products SET stock = (SELECT stock FROM rf_inventory WHERE product_id = ${productId}), updated_at = NOW() WHERE id = ${productId}`;
+      const productId = readString(item.product_id);
+      const size = normalizeSize(readString(item.size));
+      const color = normalizeColor(readString(item.color));
+      const quantity = Math.max(1, Math.floor(asNumber(item.quantity, 1)));
+      await db`UPDATE rf_variants SET stock = GREATEST(0, stock - ${quantity}), updated_at = NOW() WHERE product_id = ${productId} AND size = ${size} AND color = ${color}`;
+      touched.add(productId);
     }
+    for (const productId of touched) await syncProductStock(productId);
   }
   return (await databaseOrders()).find(order => order.id === orderId) || null;
 }
