@@ -7,6 +7,7 @@ import { quoteShipping } from '../../../../lib/shipping';
 import { createOrder, setOrderPreference, setOrderStatus } from '../../../../lib/store';
 import { defaultProductColor, productColors, productSizes } from '../../../../lib/product-variants';
 import { normalizeColor, normalizeSize, variantKey, variantStock } from '../../../../lib/variants';
+import { isPaymentMethod, orderTotals, unitPriceFor, type PaymentMethod } from '../../../../lib/pricing';
 
 export const runtime = 'nodejs';
 
@@ -41,9 +42,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Muitas tentativas de pagamento. Aguarde alguns minutos e tente novamente.' }, { status: 429 });
     }
 
-    let body: { items?: CartItem[]; shipping?: Shipping };
+    let body: { items?: CartItem[]; shipping?: Shipping; paymentMethod?: unknown };
     try {
-      body = await req.json() as { items?: CartItem[]; shipping?: Shipping };
+      body = await req.json() as { items?: CartItem[]; shipping?: Shipping; paymentMethod?: unknown };
     } catch {
       throw new PaymentInputError('Não foi possível ler os dados do pedido. Atualize a página e tente novamente.');
     }
@@ -110,10 +111,13 @@ export async function POST(req: Request) {
       throw new PaymentInputError('A modalidade de entrega selecionada expirou. Calcule o frete novamente.');
     }
     const shipping = { name: selectedShipping.name, company: selectedShipping.company, price: selectedShipping.price, deliveryTime: selectedShipping.deliveryTime };
-    const total = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) + shipping.price;
-    if (!Number.isFinite(total) || total <= 0) throw new PaymentInputError('Não foi possível calcular o total do pedido.');
+    const paymentMethod: PaymentMethod = isPaymentMethod(body.paymentMethod) ? body.paymentMethod : 'OTHER';
+    const totals = orderTotals(items, shipping.price, paymentMethod);
+    if (!Number.isFinite(totals.total) || totals.total <= 0) throw new PaymentInputError('Não foi possível calcular o total do pedido.');
 
-    const order = await createOrder(user.id, { items, shipping, total });
+    const order = await createOrder(user.id, {
+      items, shipping, paymentMethod, subtotal: totals.subtotal, discount: totals.discount, total: totals.total,
+    });
     orderId = order.id;
     const siteUrl = baseUrl(req);
     const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
@@ -123,7 +127,7 @@ export async function POST(req: Request) {
         external_reference: order.id,
         metadata: { source: 'renata-felix', customer_email: user.email },
         items: [
-          ...items.map(item => ({ title: `${item.name} · ${item.color} · ${item.size}`, quantity: item.quantity, unit_price: item.unitPrice, currency_id: 'BRL' })),
+          ...items.map(item => ({ title: `${item.name} · ${item.color} · ${item.size}`, quantity: item.quantity, unit_price: unitPriceFor(item.unitPrice, paymentMethod), currency_id: 'BRL' })),
           { title: `Entrega · ${shipping.company} ${shipping.name}`, quantity: 1, unit_price: shipping.price, currency_id: 'BRL' },
         ],
         payer: { email: user.email },
@@ -134,7 +138,12 @@ export async function POST(req: Request) {
         },
         notification_url: `${siteUrl}/api/payments/mercadopago/webhook`,
         auto_return: 'approved',
-        payment_methods: { installments: 6 },
+        // O preço enviado já é o do método escolhido, então a preferência
+        // libera apenas esse método: sem isso a cliente poderia pagar no PIX
+        // o valor cheio, ou no cartão o valor com desconto de PIX.
+        payment_methods: paymentMethod === 'PIX'
+          ? { installments: 1, excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'atm' }, { id: 'account_money' }] }
+          : { installments: 6, excluded_payment_types: [{ id: 'bank_transfer' }] },
       }),
       cache: 'no-store',
     });

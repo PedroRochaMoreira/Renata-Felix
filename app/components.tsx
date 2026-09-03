@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowRight, Heart, Instagram, Menu, Search, ShoppingBag, UserRound, X } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import { Product, formatPrice } from './data';
+import { pixUnitPrice } from '../lib/pricing';
 import { useStore } from './store';
 
 const navigation = [
@@ -23,6 +24,7 @@ export function Header() {
   const cartCount = cart.reduce((total, item) => total + item.qty, 0);
 
   return <>
+    <div className="announcement"><span>10% de desconto no PIX</span></div>
     <header className="header">
       <button className="mobileMenuButton iconButton" onClick={() => setMenuOpen(open => !open)} aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button>
       <nav className="nav" aria-label="Navegação principal">{navigation.map(item => <Link href={item.href} key={item.href}>{item.label}</Link>)}</nav>
@@ -59,7 +61,7 @@ export function ProductCard({ product }: { product: Product }) {
   return <article className={`productCard ${soldOut ? 'isSoldOut' : ''}`}>
     <button className="iconButton fav" onClick={() => toggleFavorite(product.id)} aria-label={`${favorites.includes(product.id) ? 'Remover' : 'Adicionar'} ${product.name} dos favoritos`}><Heart size={17} fill={favorites.includes(product.id) ? '#171717' : 'none'} /></button>
     <Link className="productImage" href={`/produto/${product.id}`}><span className="imageShade" />{label && <span className="tag">{label}</span>}<img src={product.img} alt={product.name} loading="lazy" /></Link>
-    <Link href={`/produto/${product.id}`} className="productMeta"><div><p>{product.name}</p><span>{product.color}</span></div><strong className="price">{formatPrice(product.price)}</strong></Link>
+    <Link href={`/produto/${product.id}`} className="productMeta"><div><p>{product.name}</p><span>{product.color}</span></div><div className="productPrices"><strong className="price">{formatPrice(product.price)}</strong><small className="pricePix">{formatPrice(pixUnitPrice(product.price))} no PIX</small></div></Link>
   </article>;
 }
 

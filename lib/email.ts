@@ -5,6 +5,8 @@ export type OrderEmailStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
 type OrderEmailDetails = {
   id: string;
   status: OrderEmailStatus;
+  discount?: number;
+  paymentMethod?: 'PIX' | 'OTHER';
   total: number;
   items?: { name: string; size: string; color?: string; quantity: number }[];
   shipping?: { name: string; company: string; price: number; deliveryTime?: number };
@@ -42,12 +44,13 @@ export async function sendOrderStatusEmail(input: { to: string; name?: string; o
   const lines = (input.order.items || []).map(item => `${item.name}${item.color ? ` · ${item.color}` : ''} · ${item.size} × ${item.quantity}`).join('\n');
   const safeLines = (input.order.items || []).map(item => `<li>${escapeHtml(item.name)}${item.color ? ` · ${escapeHtml(item.color)}` : ''} · ${escapeHtml(item.size)} × ${item.quantity}</li>`).join('');
   const delivery = input.order.shipping ? `${input.order.shipping.company} · ${input.order.shipping.name}` : '';
+  const discount = input.order.discount && input.order.discount > 0 ? `Desconto PIX: -${money(input.order.discount)}` : '';
   const safeDelivery = input.order.shipping ? `${escapeHtml(input.order.shipping.company)} · ${escapeHtml(input.order.shipping.name)}` : '';
 
   return sendEmail({
     to: recipient,
     subject: `${copy.subject} — pedido ${input.order.id}`,
-    text: `Olá, ${customerName}.\n\n${copy.title} ${copy.body}\n\nPedido: ${input.order.id}\nTotal: ${money(input.order.total)}${delivery ? `\nEntrega: ${delivery}` : ''}${lines ? `\n\nItens:\n${lines}` : ''}\n\nAcompanhe seu pedido: ${accountUrl}`,
-    html: `<p>Olá, ${escapeHtml(customerName)}.</p><h2>${copy.title}</h2><p>${copy.body}</p><p><strong>Pedido:</strong> ${escapeHtml(input.order.id)}<br/><strong>Total:</strong> ${money(input.order.total)}${safeDelivery ? `<br/><strong>Entrega:</strong> ${safeDelivery}` : ''}</p>${safeLines ? `<p><strong>Itens</strong></p><ul>${safeLines}</ul>` : ''}<p><a href="${escapeHtml(accountUrl)}">Acompanhar pedido</a></p>`,
+    text: `Olá, ${customerName}.\n\n${copy.title} ${copy.body}\n\nPedido: ${input.order.id}${discount ? `\n${discount}` : ''}\nTotal: ${money(input.order.total)}${delivery ? `\nEntrega: ${delivery}` : ''}${lines ? `\n\nItens:\n${lines}` : ''}\n\nAcompanhe seu pedido: ${accountUrl}`,
+    html: `<p>Olá, ${escapeHtml(customerName)}.</p><h2>${copy.title}</h2><p>${copy.body}</p><p><strong>Pedido:</strong> ${escapeHtml(input.order.id)}${discount ? `<br/><strong>Desconto PIX:</strong> -${money(input.order.discount || 0)}` : ''}<br/><strong>Total:</strong> ${money(input.order.total)}${safeDelivery ? `<br/><strong>Entrega:</strong> ${safeDelivery}` : ''}</p>${safeLines ? `<p><strong>Itens</strong></p><ul>${safeLines}</ul>` : ''}<p><a href="${escapeHtml(accountUrl)}">Acompanhar pedido</a></p>`,
   });
 }

@@ -4,6 +4,7 @@ import path from 'path';
 import { neon } from '@neondatabase/serverless';
 import { products as baseProducts } from '../app/data';
 import { buildVariants, distributeStock, normalizeColor, normalizeSize, reconcileVariants, totalStock, type Variant } from './variants';
+import { isPaymentMethod, type PaymentMethod } from './pricing';
 
 export type StoredProduct = {
   id: string;
@@ -38,7 +39,10 @@ export type Order = {
   status: OrderStatus;
   items: { id: string; name: string; size: string; color?: string; quantity: number; unitPrice: number }[];
   shipping?: { name: string; company: string; price: number; deliveryTime?: number };
+  subtotal?: number;
+  discount?: number;
   total: number;
+  paymentMethod?: PaymentMethod;
   paymentPreferenceId?: string;
   paymentId?: string;
   createdAt: string;
@@ -176,7 +180,9 @@ function fromRowOrder(row: Row): Order {
   return {
     id: readString(row.id), userId: readString(row.user_id),
     status: status === 'APPROVED' || status === 'REJECTED' || status === 'CANCELLED' ? status : 'PENDING',
-    items, shipping, total: asNumber(row.total), paymentPreferenceId: readOptionalString(row.payment_preference_id),
+    items, shipping, discount: asNumber(row.discount), total: asNumber(row.total),
+    paymentMethod: isPaymentMethod(row.payment_method) ? row.payment_method : 'OTHER',
+    paymentPreferenceId: readOptionalString(row.payment_preference_id),
     paymentId: readOptionalString(row.payment_id), createdAt: asIso(row.created_at), updatedAt: asIso(row.updated_at),
   };
 }
@@ -319,6 +325,9 @@ async function ensureSchema() {
     // Existing databases used a unique key that did not include colour. Keep
     // legacy orders untouched while allowing the same size in two real colours.
     await db.query(`ALTER TABLE rf_order_items ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT ''`);
+    // Pedidos anteriores ao desconto do PIX nasceram sem método e sem abatimento.
+    await db.query(`ALTER TABLE rf_orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'OTHER'`);
+    await db.query(`ALTER TABLE rf_orders ADD COLUMN IF NOT EXISTS discount NUMERIC(12,2) NOT NULL DEFAULT 0`);
     await db.query(`ALTER TABLE rf_order_items DROP CONSTRAINT IF EXISTS rf_order_items_order_id_product_id_size_key`);
     await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS rf_order_items_order_product_size_color_idx ON rf_order_items (order_id, product_id, size, color)`);
     await migrateLegacyStore();
@@ -331,12 +340,12 @@ async function databaseOrders(userId?: string): Promise<Order[]> {
   await ensureSchema();
   const db = database();
   const rows = userId
-    ? await db`SELECT o.id, o.user_id, o.status, o.total, o.payment_preference_id, o.payment_id, o.created_at, o.updated_at,
+    ? await db`SELECT o.id, o.user_id, o.status, o.total, o.discount, o.payment_method, o.payment_preference_id, o.payment_id, o.created_at, o.updated_at,
         COALESCE(json_agg(json_build_object('id', i.product_id, 'name', i.name, 'size', i.size, 'color', i.color, 'quantity', i.quantity, 'unitPrice', i.unit_price)) FILTER (WHERE i.id IS NOT NULL), '[]'::json) AS items,
         CASE WHEN s.order_id IS NULL THEN NULL ELSE json_build_object('name', s.name, 'company', s.company, 'price', s.price, 'deliveryTime', s.delivery_time) END AS shipping
         FROM rf_orders o LEFT JOIN rf_order_items i ON i.order_id = o.id LEFT JOIN rf_order_shipping s ON s.order_id = o.id
         WHERE o.user_id = ${userId} GROUP BY o.id, s.order_id, s.name, s.company, s.price, s.delivery_time ORDER BY o.created_at DESC`
-    : await db`SELECT o.id, o.user_id, o.status, o.total, o.payment_preference_id, o.payment_id, o.created_at, o.updated_at,
+    : await db`SELECT o.id, o.user_id, o.status, o.total, o.discount, o.payment_method, o.payment_preference_id, o.payment_id, o.created_at, o.updated_at,
         COALESCE(json_agg(json_build_object('id', i.product_id, 'name', i.name, 'size', i.size, 'color', i.color, 'quantity', i.quantity, 'unitPrice', i.unit_price)) FILTER (WHERE i.id IS NOT NULL), '[]'::json) AS items,
         CASE WHEN s.order_id IS NULL THEN NULL ELSE json_build_object('name', s.name, 'company', s.company, 'price', s.price, 'deliveryTime', s.delivery_time) END AS shipping
         FROM rf_orders o LEFT JOIN rf_order_items i ON i.order_id = o.id LEFT JOIN rf_order_shipping s ON s.order_id = o.id
@@ -681,7 +690,7 @@ export async function createOrder(userId: string, order: Omit<Order, 'id' | 'use
   if (!sql) { const local = localRead(); local.orders.unshift(created); localSave(local); return created; }
   await ensureSchema(); const db = database();
   await db.transaction([
-    db`INSERT INTO rf_orders (id, user_id, status, total, payment_preference_id, payment_id, created_at, updated_at) VALUES (${created.id}, ${userId}, 'PENDING', ${created.total}, ${created.paymentPreferenceId || null}, ${created.paymentId || null}, ${now}, ${now})`,
+    db`INSERT INTO rf_orders (id, user_id, status, total, discount, payment_method, payment_preference_id, payment_id, created_at, updated_at) VALUES (${created.id}, ${userId}, 'PENDING', ${created.total}, ${created.discount || 0}, ${created.paymentMethod || 'OTHER'}, ${created.paymentPreferenceId || null}, ${created.paymentId || null}, ${now}, ${now})`,
     ...created.items.map(item => db`INSERT INTO rf_order_items (order_id, product_id, name, size, color, quantity, unit_price) VALUES (${created.id}, ${item.id}, ${item.name}, ${item.size}, ${item.color || ''}, ${item.quantity}, ${item.unitPrice})`),
     ...(created.shipping ? [db`INSERT INTO rf_order_shipping (order_id, name, company, price, delivery_time) VALUES (${created.id}, ${created.shipping.name}, ${created.shipping.company}, ${created.shipping.price}, ${created.shipping.deliveryTime || null})`] : []),
   ]);
