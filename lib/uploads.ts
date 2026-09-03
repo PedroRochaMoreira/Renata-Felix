@@ -49,3 +49,20 @@ export async function removeProductImage(url: string) {
     try { await unlink(path.join(process.cwd(), 'public', 'uploads', path.basename(url))); } catch { /* image may be shared or already absent */ }
   }
 }
+
+/**
+ * Apaga apenas as fotos que nenhuma outra peça do catálogo ainda usa. A
+ * galeria permite reaproveitar a mesma foto em várias peças, por isso a
+ * exclusão nunca pode ser feita apenas pelo produto removido.
+ */
+export async function removeUnusedImages(candidates: string[], stillUsed: Set<string>) {
+  const orphans = [...new Set(candidates)].filter(image => image && !stillUsed.has(image));
+  for (const image of orphans) {
+    try {
+      await removeProductImage(image);
+    } catch {
+      console.error(`Não foi possível remover a foto ${image} do armazenamento.`);
+    }
+  }
+  return orphans;
+}

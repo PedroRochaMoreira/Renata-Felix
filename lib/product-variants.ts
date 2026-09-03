@@ -1,3 +1,5 @@
+import { normalizeText } from './text';
+
 /**
  * The catalog currently keeps the primary colour in `color`.  A comma, slash
  * or pipe separated value is also understood as the list of colours offered
@@ -25,16 +27,6 @@ const commonColorTones: Record<string, string> = {
   dourado: '#b69360', gold: '#b69360', denim: '#506d87', jeans: '#506d87',
 };
 
-function normalizedColorName(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLocaleLowerCase('pt-BR')
-    .replace(/[._-]+/g, ' ')
-    .replace(/\s+/g, ' ');
-}
-
 export function productSizes(product: { sizes?: string[] }) {
   const sizes = product.sizes?.map(size => size.trim().toUpperCase()).filter(Boolean) || [];
   return sizes.length ? [...new Set(sizes)] : defaultProductSizes;
@@ -57,5 +49,5 @@ export function defaultProductColor(product: { color: string }) {
 export function productColorTone(color: string) {
   const raw = color.trim();
   if (/^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.test(raw)) return raw;
-  return commonColorTones[normalizedColorName(raw)] || '#9b9288';
+  return commonColorTones[normalizeText(raw)] || '#9b9288';
 }

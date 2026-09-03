@@ -23,7 +23,6 @@ export function Header() {
   const cartCount = cart.reduce((total, item) => total + item.qty, 0);
 
   return <>
-    <div className="announcement"><span>Frete cortesia acima de R$ 1.200</span><span className="announcementDot">•</span><span>10% de desconto no Pix</span></div>
     <header className="header">
       <button className="mobileMenuButton iconButton" onClick={() => setMenuOpen(open => !open)} aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button>
       <nav className="nav" aria-label="Navegação principal">{navigation.map(item => <Link href={item.href} key={item.href}>{item.label}</Link>)}</nav>

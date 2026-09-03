@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 
 export type CartLine = { id: string; size: string; color?: string; qty: number };
 export type ShippingOption = { id: string | number; name: string; company: string; price: number; deliveryTime: number; postalCode?: string };
@@ -79,11 +79,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [shipping, setShipping] = useState<ShippingOption | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const cartDiscarded = useRef(false);
 
   useEffect(() => {
-    setCart(readCart(readLocal<unknown>('rf-cart', [])));
+    // O checkout limpa a sacola ao voltar do provedor de pagamento, e o efeito
+    // dele roda antes deste. Sem a marca abaixo, a leitura do armazenamento
+    // devolveria a sacola já paga para a cliente.
+    if (!cartDiscarded.current) {
+      setCart(readCart(readLocal<unknown>('rf-cart', [])));
+      setShipping(readLocal<ShippingOption | null>('rf-shipping', null));
+    }
     setFavorites(readLocal<string[]>('rf-favorites', []));
-    setShipping(readLocal<ShippingOption | null>('rf-shipping', null));
     setHydrated(true);
     fetch('/api/account/favorites')
       .then(response => response.ok ? response.json() : null)
@@ -137,7 +143,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     remove: (id, size, color) => setCart(current => current.filter(item => item.id !== id || item.size !== size || (color !== undefined && (item.color || '') !== color))),
     setQuantity,
     setVariant,
-    clearCart: () => { setCart([]); setShipping(null); },
+    clearCart: () => { cartDiscarded.current = true; setCart([]); setShipping(null); },
     setShipping,
     toggleFavorite,
   }}>{children}</Context.Provider>;

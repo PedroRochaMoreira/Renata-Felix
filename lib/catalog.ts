@@ -28,3 +28,14 @@ export async function getCatalog(): Promise<Product[]> {
 export async function findCatalogProduct(id: string) {
   return (await getCatalog()).find(product => product.id === id);
 }
+
+/** Todas as fotos em uso pelo catálogo, para não apagar uma foto compartilhada. */
+export async function catalogImages() {
+  const catalog = await getCatalog();
+  return new Set(catalog.flatMap(product => (product.images?.length ? product.images : [product.img])).filter(Boolean));
+}
+
+/** As fotos de uma peça, sem repetições e sem valores vazios. */
+export function productImages(product: { img: string; images?: string[] }) {
+  return [...new Set((product.images?.length ? product.images : [product.img]).filter(Boolean))];
+}

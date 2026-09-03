@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '../../../../lib/auth';
-import { findCatalogProduct } from '../../../../lib/catalog';
+import { catalogImages, findCatalogProduct, productImages } from '../../../../lib/catalog';
 import { addProduct, setStock, updateProduct } from '../../../../lib/store';
-import { uploadProductImage } from '../../../../lib/uploads';
+import { removeUnusedImages, uploadProductImage } from '../../../../lib/uploads';
 
 const maxImages = 8;
 
@@ -63,8 +63,17 @@ export async function PATCH(req: Request) {
     try { existing = JSON.parse(String(form.get('existingImages') || '[]')); } catch { throw new Error('As fotos da peça não puderam ser lidas.'); }
     const persistedImages = Array.isArray(existing) ? existing.filter((image): image is string => typeof image === 'string' && image.length > 0) : [];
     const values = productValues(form, [...new Set([...persistedImages, ...(await saveUploads(form))])]);
+    const previousImages = productImages(current);
     await updateProduct(id, values);
     await setStock(id, values.stock);
+
+    // As fotos retiradas da peça só saem do armazenamento se nenhuma outra
+    // peça continuar usando a mesma imagem. Uma falha aqui não desfaz a edição.
+    try {
+      await removeUnusedImages(previousImages, await catalogImages());
+    } catch {
+      console.error(`Não foi possível limpar as fotos antigas da peça ${id}.`);
+    }
     return NextResponse.json({ product: await findCatalogProduct(id) });
   } catch (error) {
     return errorResponse(error, 'Não foi possível atualizar a peça.');
