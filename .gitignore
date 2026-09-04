@@ -8,3 +8,4 @@ data/*.json
 coverage
 .DS_Store
 *.tsbuildinfo
+.claude
