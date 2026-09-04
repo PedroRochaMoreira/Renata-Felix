@@ -2,7 +2,105 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Clock3, MapPin } from 'lucide-react';
 import { Footer, Header } from '../components';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Sobre a marca',
+  description: 'A história e a curadoria da Renata Felix, loja de moda feminina contemporânea em Luziânia, Goiás.',
+  alternates: { canonical: '/sobre' },
+  openGraph: { url: '/sobre' },
+};
 
 export default function Sobre() {
-  return <><Header /><main className="aboutPage"><section className="editorial"><div className="editorialCopy"><span className="eyebrow">Desde 2014</span><h1 className="serif">Uma curadoria para mulheres em movimento.</h1><p>A Renata Felix é uma loja de moda feminina contemporânea. Aqui, cada peça é escolhida pelo encontro entre caimento, qualidade e a liberdade de ser quem você é.</p><Link href="/loja" className="textLink" style={{ marginTop: 22, width: 'max-content' }}>Conhecer a loja <ArrowRight size={13} /></Link></div><div className="visual"><Image src="https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1400&q=85" alt="Ambiente de moda Renata Felix" fill sizes="(max-width: 760px) 100vw, 50vw" /></div></section><section className="aboutValues"><div><span className="eyebrow">Nossa forma de escolher</span><h2 className="serif">Elegância não precisa pedir licença.</h2></div><div className="valueList"><article><b>01</b><h3 className="serif">Intenção</h3><p>Peças que fazem sentido para o agora e continuam fazendo para depois.</p></article><article><b>02</b><h3 className="serif">Presença</h3><p>Uma seleção que valoriza proporções, matéria e a sua individualidade.</p></article><article><b>03</b><h3 className="serif">Proximidade</h3><p>Atendimento atento, físico e digital, para você se sentir bem escolhendo.</p></article></div></section><section className="aboutStore"><div className="aboutStorePhoto"><Image src="/brand/fachada-renata-felix.png" alt="Fachada da Renata Felix Store em Luziânia" fill sizes="(max-width: 760px) 100vw, 52vw" /><span>Luziânia · Goiás</span></div><div className="aboutStoreDetails"><span className="eyebrow">Visite-nos</span><h2 className="serif">Nossa loja, de perto.</h2><p>Um espaço pensado para você provar, conversar e encontrar peças que acompanham a sua história.</p><div className="aboutStoreInfo"><div><MapPin size={18} /><span><small>Endereço</small><strong>R. José Alencar, Qd. 77 · Lt. 12<br />Luziânia — GO · 72804-030</strong></span></div><div><Clock3 size={18} /><span><small>Funcionamento</small><strong>Segunda a sexta · 9h às 18h</strong></span></div></div><Link className="button light aboutStoreAction" href="/lojas"><MapPin size={15} /> Ver endereço e mapa</Link></div></section></main><Footer /></>;
+  return (
+    <>
+      <Header />
+      <main id="conteudo" tabIndex={-1} className="aboutPage">
+        <section className="editorial">
+          <div className="editorialCopy">
+            <span className="eyebrow">Desde 2014</span>
+            <h1 className="serif">Uma curadoria para mulheres em movimento.</h1>
+            <p>
+              A Renata Felix é uma loja de moda feminina contemporânea. Aqui, cada peça é escolhida pelo encontro entre caimento, qualidade
+              e a liberdade de ser quem você é.
+            </p>
+            <Link href="/loja" className="textLink" style={{ marginTop: 22, width: 'max-content' }}>
+              Conhecer a loja <ArrowRight size={13} />
+            </Link>
+          </div>
+          <div className="visual">
+            <Image
+              src="https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1400&q=85"
+              alt="Ambiente de moda Renata Felix"
+              fill
+              sizes="(max-width: 760px) 100vw, 50vw"
+            />
+          </div>
+        </section>
+        <section className="aboutValues">
+          <div>
+            <span className="eyebrow">Nossa forma de escolher</span>
+            <h2 className="serif">Elegância não precisa pedir licença.</h2>
+          </div>
+          <div className="valueList">
+            <article>
+              <b>01</b>
+              <h3 className="serif">Intenção</h3>
+              <p>Peças que fazem sentido para o agora e continuam fazendo para depois.</p>
+            </article>
+            <article>
+              <b>02</b>
+              <h3 className="serif">Presença</h3>
+              <p>Uma seleção que valoriza proporções, matéria e a sua individualidade.</p>
+            </article>
+            <article>
+              <b>03</b>
+              <h3 className="serif">Proximidade</h3>
+              <p>Atendimento atento, físico e digital, para você se sentir bem escolhendo.</p>
+            </article>
+          </div>
+        </section>
+        <section className="aboutStore">
+          <div className="aboutStorePhoto">
+            <Image
+              src="/brand/fachada-renata-felix.png"
+              alt="Fachada da Renata Felix Store em Luziânia"
+              fill
+              sizes="(max-width: 760px) 100vw, 52vw"
+            />
+            <span>Luziânia · Goiás</span>
+          </div>
+          <div className="aboutStoreDetails">
+            <span className="eyebrow">Visite-nos</span>
+            <h2 className="serif">Nossa loja, de perto.</h2>
+            <p>Um espaço pensado para você provar, conversar e encontrar peças que acompanham a sua história.</p>
+            <div className="aboutStoreInfo">
+              <div>
+                <MapPin size={18} />
+                <span>
+                  <small>Endereço</small>
+                  <strong>
+                    R. José Alencar, Qd. 77 · Lt. 12
+                    <br />
+                    Luziânia — GO · 72804-030
+                  </strong>
+                </span>
+              </div>
+              <div>
+                <Clock3 size={18} />
+                <span>
+                  <small>Funcionamento</small>
+                  <strong>Segunda a sexta · 9h às 18h</strong>
+                </span>
+              </div>
+            </div>
+            <Link className="button light aboutStoreAction" href="/lojas">
+              <MapPin size={15} /> Ver endereço e mapa
+            </Link>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </>
+  );
 }

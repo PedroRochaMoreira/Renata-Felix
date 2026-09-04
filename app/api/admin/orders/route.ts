@@ -19,7 +19,7 @@ export async function GET() {
 export async function PATCH(req: Request) {
   try {
     await requireAdmin();
-    const body = await req.json() as { id?: string; status?: string };
+    const body = (await req.json()) as { id?: string; status?: string };
     if (!body.id || !statuses.includes(body.status as OrderStatus)) {
       return NextResponse.json({ error: 'Pedido ou status inválido.' }, { status: 400 });
     }

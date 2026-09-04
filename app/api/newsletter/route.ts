@@ -5,11 +5,13 @@ import { checkRateLimit, requestClientKey } from '../../../lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
-    if (!checkRateLimit(`newsletter:${requestClientKey(req)}`, 8, 60 * 60 * 1000)) {
+    if (!(await checkRateLimit(`newsletter:${requestClientKey(req)}`, 8, 60 * 60 * 1000))) {
       return NextResponse.json({ error: 'Aguarde alguns minutos antes de fazer outro cadastro.' }, { status: 429 });
     }
     const { email } = await req.json();
-    const recipient = String(email || '').trim().toLowerCase();
+    const recipient = String(email || '')
+      .trim()
+      .toLowerCase();
     await subscribe(recipient);
     try {
       await sendEmail({

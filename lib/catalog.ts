@@ -1,9 +1,12 @@
 import { products, type Product } from '../app/data';
-import { inventory, listProducts, overrides } from './store';
+import { allVariants, inventory, listProducts, overrides } from './store';
+import { buildVariants, reconcileVariants, totalStock } from './variants';
 
 function validImages(images: unknown, fallback: string) {
   const list = Array.isArray(images) ? images : [];
-  const valid = list.filter((image): image is string => typeof image === 'string' && image.trim().length > 0 && image !== 'null' && image !== 'undefined');
+  const valid = list.filter(
+    (image): image is string => typeof image === 'string' && image.trim().length > 0 && image !== 'null' && image !== 'undefined',
+  );
   return valid.length ? [...new Set(valid)] : [fallback];
 }
 
@@ -14,17 +17,42 @@ function validImages(images: unknown, fallback: string) {
  */
 export async function getCatalog(): Promise<Product[]> {
   try {
-    const [stock, edited, customProducts] = await Promise.all([inventory(), overrides(), listProducts()]);
-    return [...customProducts, ...products].filter(product => !stock[product.id]?.deleted).map(product => {
-      const merged = { ...product, ...edited[product.id] } as Product;
-      const images = validImages(merged.images, merged.img);
-      return { ...merged, img: images[0], images, stock: stock[product.id]?.stock ?? merged.stock ?? 10 };
-    });
+    const [stock, edited, customProducts, grades] = await Promise.all([inventory(), overrides(), listProducts(), allVariants()]);
+    // As peças de demonstração existem só para a loja não nascer vazia. Assim
+    // que a primeira peça real é cadastrada, elas somem sozinhas da vitrine.
+    const showcase = customProducts.length ? customProducts : [...customProducts, ...products];
+    return showcase
+      .filter(product => !stock[product.id]?.deleted)
+      .map(product => {
+        const merged = { ...product, ...edited[product.id] } as Product;
+        const images = validImages(merged.images, merged.img);
+        const saved = grades[product.id];
+        // O estoque verdadeiro é o da grade de tamanho e cor. O número por peça
+        // continua exposto porque a vitrine só precisa saber se ainda há algo.
+        const variants = saved?.length
+          ? reconcileVariants(merged, saved)
+          : buildVariants(merged, stock[product.id]?.stock ?? merged.stock ?? 10);
+        return { ...merged, img: images[0], images, variants, stock: totalStock(variants) };
+      });
   } catch {
-    return products.map(product => ({ ...product, images: validImages(product.images, product.img), stock: product.stock ?? 10 }));
+    return products.map(product => {
+      const variants = buildVariants(product, product.stock ?? 10);
+      return { ...product, images: validImages(product.images, product.img), variants, stock: totalStock(variants) };
+    });
   }
 }
 
 export async function findCatalogProduct(id: string) {
   return (await getCatalog()).find(product => product.id === id);
+}
+
+/** Todas as fotos em uso pelo catálogo, para não apagar uma foto compartilhada. */
+export async function catalogImages() {
+  const catalog = await getCatalog();
+  return new Set(catalog.flatMap(product => (product.images?.length ? product.images : [product.img])).filter(Boolean));
+}
+
+/** As fotos de uma peça, sem repetições e sem valores vazios. */
+export function productImages(product: { img: string; images?: string[] }) {
+  return [...new Set((product.images?.length ? product.images : [product.img]).filter(Boolean))];
 }

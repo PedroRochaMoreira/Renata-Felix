@@ -1,9 +1,16 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 
 export type CartLine = { id: string; size: string; color?: string; qty: number };
-export type ShippingOption = { id: string | number; name: string; company: string; price: number; deliveryTime: number; postalCode?: string };
+export type ShippingOption = {
+  id: string | number;
+  name: string;
+  company: string;
+  price: number;
+  deliveryTime: number;
+  postalCode?: string;
+};
 type Store = {
   cart: CartLine[];
   favorites: string[];
@@ -23,7 +30,7 @@ const Context = createContext<Store | null>(null);
 function readLocal<T>(key: string, fallback: T) {
   try {
     const value = localStorage.getItem(key);
-    return value ? JSON.parse(value) as T : fallback;
+    return value ? (JSON.parse(value) as T) : fallback;
   } catch {
     return fallback;
   }
@@ -64,13 +71,15 @@ function stockLimit(value: number | undefined) {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value as number)) : 99;
 }
 
-function quantityForProduct(lines: CartLine[], id: string) {
-  return lines.filter(line => line.id === id).reduce((total, line) => total + line.qty, 0);
+function quantityForVariant(lines: CartLine[], id: string, size: string, color = '') {
+  return lines.filter(line => sameCartLine(line, id, size, color)).reduce((total, line) => total + line.qty, 0);
 }
 
 function persistFavorites(next: string[]) {
   void fetch('/api/account/favorites', {
-    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ favorites: next }),
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ favorites: next }),
   }).catch(() => undefined);
 }
 
@@ -79,68 +88,106 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [shipping, setShipping] = useState<ShippingOption | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const cartDiscarded = useRef(false);
 
   useEffect(() => {
-    setCart(readCart(readLocal<unknown>('rf-cart', [])));
+    // O checkout limpa a sacola ao voltar do provedor de pagamento, e o efeito
+    // dele roda antes deste. Sem a marca abaixo, a leitura do armazenamento
+    // devolveria a sacola já paga para a cliente.
+    if (!cartDiscarded.current) {
+      setCart(readCart(readLocal<unknown>('rf-cart', [])));
+      setShipping(readLocal<ShippingOption | null>('rf-shipping', null));
+    }
     setFavorites(readLocal<string[]>('rf-favorites', []));
-    setShipping(readLocal<ShippingOption | null>('rf-shipping', null));
     setHydrated(true);
     fetch('/api/account/favorites')
-      .then(response => response.ok ? response.json() : null)
-      .then(data => { if (Array.isArray(data?.favorites)) setFavorites(data.favorites); })
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => {
+        if (Array.isArray(data?.favorites)) setFavorites(data.favorites);
+      })
       .catch(() => undefined);
   }, []);
 
-  useEffect(() => { if (hydrated) localStorage.setItem('rf-cart', JSON.stringify(cart)); }, [cart, hydrated]);
-  useEffect(() => { if (hydrated) localStorage.setItem('rf-favorites', JSON.stringify(favorites)); }, [favorites, hydrated]);
-  useEffect(() => { if (hydrated) localStorage.setItem('rf-shipping', JSON.stringify(shipping)); }, [shipping, hydrated]);
+  useEffect(() => {
+    if (hydrated) localStorage.setItem('rf-cart', JSON.stringify(cart));
+  }, [cart, hydrated]);
+  useEffect(() => {
+    if (hydrated) localStorage.setItem('rf-favorites', JSON.stringify(favorites));
+  }, [favorites, hydrated]);
+  useEffect(() => {
+    if (hydrated) localStorage.setItem('rf-shipping', JSON.stringify(shipping));
+  }, [shipping, hydrated]);
 
-  const add = (id: string, size: string, maxQuantity = 99, color = '') => setCart(current => {
-    const limit = stockLimit(maxQuantity);
-    if (quantityForProduct(current, id) >= limit) return current;
-    const existing = current.find(item => sameCartLine(item, id, size, color));
-    if (existing) return current.map(item => sameCartLine(item, id, size, color) ? { ...item, qty: item.qty + 1 } : item);
-    return [...current, { id, size, color: color || undefined, qty: 1 }];
-  });
+  // O limite é da variante escolhida: o estoque de um tamanho não empresta
+  // peças para outro tamanho da mesma modelagem.
+  const add = (id: string, size: string, maxQuantity = 99, color = '') =>
+    setCart(current => {
+      const limit = stockLimit(maxQuantity);
+      if (quantityForVariant(current, id, size, color) >= limit) return current;
+      const existing = current.find(item => sameCartLine(item, id, size, color));
+      if (existing) return current.map(item => (sameCartLine(item, id, size, color) ? { ...item, qty: item.qty + 1 } : item));
+      return [...current, { id, size, color: color || undefined, qty: 1 }];
+    });
 
-  const setQuantity = (id: string, size: string, quantity: number, maxQuantity = 99, color = '') => setCart(current => {
-    const limit = stockLimit(maxQuantity);
-    const otherQuantity = current.filter(item => item.id === id && !sameCartLine(item, id, size, color)).reduce((total, item) => total + item.qty, 0);
-    const nextQuantity = Math.min(Math.max(0, Math.floor(quantity)), Math.max(0, limit - otherQuantity));
-    if (nextQuantity <= 0) return current.filter(item => !sameCartLine(item, id, size, color));
-    return current.map(item => sameCartLine(item, id, size, color) ? { ...item, qty: nextQuantity } : item);
-  });
+  const setQuantity = (id: string, size: string, quantity: number, maxQuantity = 99, color = '') =>
+    setCart(current => {
+      const nextQuantity = Math.min(Math.max(0, Math.floor(quantity)), stockLimit(maxQuantity));
+      if (nextQuantity <= 0) return current.filter(item => !sameCartLine(item, id, size, color));
+      return current.map(item => (sameCartLine(item, id, size, color) ? { ...item, qty: nextQuantity } : item));
+    });
 
-  const setVariant = (id: string, size: string, color: string, nextSize: string, nextColor: string, maxQuantity = 99) => setCart(current => {
-    const safeSize = cleanPart(size, 32);
-    const safeColor = cleanPart(color, 60);
-    const safeNextSize = cleanPart(nextSize, 32);
-    const safeNextColor = cleanPart(nextColor, 60);
-    if (!safeSize || !safeNextSize || (safeSize === safeNextSize && safeColor === safeNextColor)) return current;
-    const source = current.find(item => sameCartLine(item, id, safeSize, safeColor));
-    if (!source) return current;
-    const target = current.find(item => sameCartLine(item, id, safeNextSize, safeNextColor));
-    const otherLines = current.filter(item => item.id === id && item !== source && item !== target);
-    const mergedQuantity = Math.min(source.qty + (target?.qty || 0), Math.max(0, stockLimit(maxQuantity) - quantityForProduct(otherLines, id)));
-    const withoutOldVariants = current.filter(item => item !== source && item !== target);
-    return mergedQuantity > 0 ? [...withoutOldVariants, { id, size: safeNextSize, color: safeNextColor || undefined, qty: mergedQuantity }] : withoutOldVariants;
-  });
+  const setVariant = (id: string, size: string, color: string, nextSize: string, nextColor: string, maxQuantity = 99) =>
+    setCart(current => {
+      const safeSize = cleanPart(size, 32);
+      const safeColor = cleanPart(color, 60);
+      const safeNextSize = cleanPart(nextSize, 32);
+      const safeNextColor = cleanPart(nextColor, 60);
+      if (!safeSize || !safeNextSize || (safeSize === safeNextSize && safeColor === safeNextColor)) return current;
+      const source = current.find(item => sameCartLine(item, id, safeSize, safeColor));
+      if (!source) return current;
+      const target = current.find(item => sameCartLine(item, id, safeNextSize, safeNextColor));
+      // maxQuantity já é o estoque da variante de destino, então a soma das duas
+      // linhas só pode ir até onde o novo tamanho e cor permitem.
+      const mergedQuantity = Math.min(source.qty + (target?.qty || 0), stockLimit(maxQuantity));
+      const withoutOldVariants = current.filter(item => item !== source && item !== target);
+      return mergedQuantity > 0
+        ? [...withoutOldVariants, { id, size: safeNextSize, color: safeNextColor || undefined, qty: mergedQuantity }]
+        : withoutOldVariants;
+    });
 
-  const toggleFavorite = (id: string) => setFavorites(current => {
-    const next = current.includes(id) ? current.filter(item => item !== id) : [...current, id];
-    persistFavorites(next);
-    return next;
-  });
+  const toggleFavorite = (id: string) =>
+    setFavorites(current => {
+      const next = current.includes(id) ? current.filter(item => item !== id) : [...current, id];
+      persistFavorites(next);
+      return next;
+    });
 
-  return <Context.Provider value={{
-    cart, favorites, shipping, hydrated, add,
-    remove: (id, size, color) => setCart(current => current.filter(item => item.id !== id || item.size !== size || (color !== undefined && (item.color || '') !== color))),
-    setQuantity,
-    setVariant,
-    clearCart: () => { setCart([]); setShipping(null); },
-    setShipping,
-    toggleFavorite,
-  }}>{children}</Context.Provider>;
+  return (
+    <Context.Provider
+      value={{
+        cart,
+        favorites,
+        shipping,
+        hydrated,
+        add,
+        remove: (id, size, color) =>
+          setCart(current =>
+            current.filter(item => item.id !== id || item.size !== size || (color !== undefined && (item.color || '') !== color)),
+          ),
+        setQuantity,
+        setVariant,
+        clearCart: () => {
+          cartDiscarded.current = true;
+          setCart([]);
+          setShipping(null);
+        },
+        setShipping,
+        toggleFavorite,
+      }}
+    >
+      {children}
+    </Context.Provider>
+  );
 }
 
 export const useStore = () => {

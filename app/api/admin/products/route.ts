@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '../../../../lib/auth';
-import { findCatalogProduct } from '../../../../lib/catalog';
+import { catalogImages, findCatalogProduct, productImages } from '../../../../lib/catalog';
 import { addProduct, setStock, updateProduct } from '../../../../lib/store';
-import { uploadProductImage } from '../../../../lib/uploads';
+import { removeUnusedImages, uploadProductImage } from '../../../../lib/uploads';
 
 const maxImages = 8;
 
 async function saveUploads(form: FormData) {
-  const files = [...form.getAll('images'), form.get('image')].filter((item): item is File => item instanceof File && item.size > 0 && Boolean(item.name));
-  const selected = [...form.getAll('galleryImages'), form.get('galleryImage')]
-    .filter((item): item is string => typeof item === 'string' && (item.startsWith('/uploads/') || item.startsWith('https://')));
+  const files = [...form.getAll('images'), form.get('image')].filter(
+    (item): item is File => item instanceof File && item.size > 0 && Boolean(item.name),
+  );
+  const selected = [...form.getAll('galleryImages'), form.get('galleryImage')].filter(
+    (item): item is string => typeof item === 'string' && (item.startsWith('/uploads/') || item.startsWith('https://')),
+  );
   if (files.length + selected.length > maxImages) throw new Error(`Use no máximo ${maxImages} fotos por peça.`);
   const uploaded = await Promise.all(files.map(uploadProductImage));
   const images = [...new Set([...selected, ...uploaded])];
@@ -17,19 +20,84 @@ async function saveUploads(form: FormData) {
   return images;
 }
 
+/**
+ * As medidas chegam como JSON no formulário. Uma linha inválida é descartada em
+ * vez de derrubar a publicação inteira da peça.
+ */
+function parseMeasurements(raw: unknown) {
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('As medidas da peça não puderam ser lidas.');
+  }
+  if (!Array.isArray(parsed)) return [];
+  const number = (value: unknown) => {
+    const candidate = Number(value);
+    return Number.isFinite(candidate) && candidate > 0 && candidate <= 400 ? Math.round(candidate * 10) / 10 : undefined;
+  };
+  return parsed
+    .map(item => {
+      const row = (item || {}) as Record<string, unknown>;
+      return {
+        size: String(row.size || '')
+          .trim()
+          .toUpperCase()
+          .slice(0, 20),
+        bust: number(row.bust),
+        waist: number(row.waist),
+        hip: number(row.hip),
+        length: number(row.length),
+      };
+    })
+    .filter(row => row.size && (row.bust || row.waist || row.hip || row.length))
+    .slice(0, 12);
+}
+
 function productValues(form: FormData, images: string[]) {
   const price = Number(form.get('price'));
   const stock = Number(form.get('stock'));
-  const sizes = String(form.get('sizes') || '').split(',').map(size => size.trim().toUpperCase()).filter(Boolean);
+  const sizes = String(form.get('sizes') || '')
+    .split(',')
+    .map(size => size.trim().toUpperCase())
+    .filter(Boolean);
   const uniqueImages = [...new Set(images)];
   const product = {
-    name: String(form.get('name') || '').trim(), price, cat: String(form.get('cat') || '').trim(), color: String(form.get('color') || '').trim(),
-    desc: String(form.get('desc') || '').trim(), isNew: form.get('isNew') === 'true', images: uniqueImages, img: uniqueImages[0] || '', sizes: [...new Set(sizes)], stock,
+    name: String(form.get('name') || '').trim(),
+    price,
+    cat: String(form.get('cat') || '').trim(),
+    color: String(form.get('color') || '').trim(),
+    desc: String(form.get('desc') || '').trim(),
+    isNew: form.get('isNew') === 'true',
+    images: uniqueImages,
+    img: uniqueImages[0] || '',
+    sizes: [...new Set(sizes)],
+    stock,
+    measurements: parseMeasurements(form.get('measurements')),
   };
-  if (!product.name || !Number.isFinite(price) || price <= 0 || !product.cat || !product.color || !product.desc || !product.img || !Number.isFinite(stock) || stock < 0) {
+  if (
+    !product.name ||
+    !Number.isFinite(price) ||
+    price <= 0 ||
+    !product.cat ||
+    !product.color ||
+    !product.desc ||
+    !product.img ||
+    !Number.isFinite(stock) ||
+    stock < 0
+  ) {
     throw new Error('Preencha os dados, informe um preço e estoque válidos e escolha ao menos uma foto.');
   }
-  if (product.name.length > 120 || product.cat.length > 60 || product.color.length > 60 || product.desc.length > 3_000 || product.sizes.some(size => size.length > 20) || price > 10_000_000 || stock > 100_000) {
+  if (
+    product.name.length > 120 ||
+    product.cat.length > 60 ||
+    product.color.length > 60 ||
+    product.desc.length > 3_000 ||
+    product.sizes.some(size => size.length > 20) ||
+    price > 10_000_000 ||
+    stock > 100_000
+  ) {
     throw new Error('Revise os dados da peça: os campos informados excedem o limite permitido.');
   }
   if (uniqueImages.length > maxImages) throw new Error(`Use no máximo ${maxImages} fotos por peça.`);
@@ -60,11 +128,26 @@ export async function PATCH(req: Request) {
     const current = await findCatalogProduct(id);
     if (!current) throw new Error('Produto não encontrado.');
     let existing: unknown = [];
-    try { existing = JSON.parse(String(form.get('existingImages') || '[]')); } catch { throw new Error('As fotos da peça não puderam ser lidas.'); }
-    const persistedImages = Array.isArray(existing) ? existing.filter((image): image is string => typeof image === 'string' && image.length > 0) : [];
+    try {
+      existing = JSON.parse(String(form.get('existingImages') || '[]'));
+    } catch {
+      throw new Error('As fotos da peça não puderam ser lidas.');
+    }
+    const persistedImages = Array.isArray(existing)
+      ? existing.filter((image): image is string => typeof image === 'string' && image.length > 0)
+      : [];
     const values = productValues(form, [...new Set([...persistedImages, ...(await saveUploads(form))])]);
+    const previousImages = productImages(current);
     await updateProduct(id, values);
     await setStock(id, values.stock);
+
+    // As fotos retiradas da peça só saem do armazenamento se nenhuma outra
+    // peça continuar usando a mesma imagem. Uma falha aqui não desfaz a edição.
+    try {
+      await removeUnusedImages(previousImages, await catalogImages());
+    } catch {
+      console.error(`Não foi possível limpar as fotos antigas da peça ${id}.`);
+    }
     return NextResponse.json({ product: await findCatalogProduct(id) });
   } catch (error) {
     return errorResponse(error, 'Não foi possível atualizar a peça.');

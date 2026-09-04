@@ -9,7 +9,7 @@ async function catalogForSitemap() {
   try {
     const stock = await inventory();
     const edited = await overrides();
-    return [...await listProducts(), ...products]
+    return [...(await listProducts()), ...products]
       .filter(product => !stock[product.id]?.deleted)
       .map(product => ({ ...product, ...edited[product.id] }));
   } catch {
@@ -33,10 +33,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${siteUrl}/termos`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
   ];
 
-  return [...pages, ...catalog.map(product => ({
-    url: `${siteUrl}/produto/${encodeURIComponent(product.id)}`,
-    lastModified: now,
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-  }))];
+  return [
+    ...pages,
+    ...catalog.map(product => ({
+      url: `${siteUrl}/produto/${encodeURIComponent(product.id)}`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    })),
+  ];
 }

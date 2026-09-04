@@ -1,8 +1,25 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
+import { DM_Mono, Manrope, Playfair_Display } from 'next/font/google';
 import CookieConsent from './cookie-consent';
 import { StoreProvider } from './store';
 import { siteDescription, siteName, siteUrl } from './site';
+
+/**
+ * As fontes eram carregadas por @import dentro do CSS, o pior caminho: o
+ * navegador só descobria que precisava delas depois de baixar e interpretar a
+ * folha inteira, e aí abria conexão com outro domínio. Servidas daqui, elas
+ * viajam junto com o site e não provocam salto de layout ao trocar.
+ */
+const manrope = Manrope({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-sans', display: 'swap' });
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
+  variable: '--font-serif',
+  display: 'swap',
+});
+const dmMono = DM_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -63,11 +80,13 @@ const organizationSchema = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <html lang="pt-BR">
-    <body>
-      <StoreProvider>{children}</StoreProvider>
-      <CookieConsent />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }} />
-    </body>
-  </html>;
+  return (
+    <html lang="pt-BR" className={`${manrope.variable} ${playfair.variable} ${dmMono.variable}`}>
+      <body>
+        <StoreProvider>{children}</StoreProvider>
+        <CookieConsent />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }} />
+      </body>
+    </html>
+  );
 }

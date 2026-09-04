@@ -2,4 +2,68 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { Footer, Header } from '../components';
-export default function RedefinirSenha() { const [token, setToken] = useState(''); useEffect(() => setToken(new URLSearchParams(window.location.search).get('token') || ''), []); const [message, setMessage] = useState(''); const [loading, setLoading] = useState(false); async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); const password = String(form.get('password') || ''); const confirmation = String(form.get('confirmation') || ''); if (password !== confirmation) return setMessage('As senhas não coincidem.'); setLoading(true); try { const response = await fetch('/api/auth/reset-password', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, password }) }); const data = await response.json(); setMessage(response.ok ? 'Senha atualizada. Agora você pode entrar.' : data.error || 'Não foi possível atualizar a senha.'); } finally { setLoading(false); } } return <><Header /><main className="loginPage"><section className="loginVisual"><div><span className="eyebrow">Segurança da conta</span><h2 className="serif">Uma nova senha, <em>um novo acesso.</em></h2></div></section><section className="loginContent"><span className="eyebrow">Redefinir senha</span><h1 className="serif">Crie sua nova senha.</h1><form className="loginForm" onSubmit={submit}><label>Nova senha<input name="password" type="password" required minLength={10} autoComplete="new-password" /></label><label>Confirme a nova senha<input name="confirmation" type="password" required minLength={10} autoComplete="new-password" /></label><p className="passwordHint">10+ caracteres, maiúscula, minúscula, número e símbolo.</p><button className="button dark" disabled={loading}>{loading ? 'Salvando...' : 'Atualizar senha'}</button></form>{message && <p className="notice">{message}</p>}<div className="loginUtilities"><Link className="textLink" href="/login">Ir para entrar</Link></div></section></main><Footer /></>; }
+export default function RedefinirSenha() {
+  const [token, setToken] = useState('');
+  useEffect(() => setToken(new URLSearchParams(window.location.search).get('token') || ''), []);
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get('password') || '');
+    const confirmation = String(form.get('confirmation') || '');
+    if (password !== confirmation) return setMessage('As senhas não coincidem.');
+    setLoading(true);
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const data = await response.json();
+      setMessage(response.ok ? 'Senha atualizada. Agora você pode entrar.' : data.error || 'Não foi possível atualizar a senha.');
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <>
+      <Header />
+      <main id="conteudo" tabIndex={-1} className="loginPage">
+        <section className="loginVisual">
+          <div>
+            <span className="eyebrow">Segurança da conta</span>
+            <h2 className="serif">
+              Uma nova senha, <em>um novo acesso.</em>
+            </h2>
+          </div>
+        </section>
+        <section className="loginContent">
+          <span className="eyebrow">Redefinir senha</span>
+          <h1 className="serif">Crie sua nova senha.</h1>
+          <form className="loginForm" onSubmit={submit}>
+            <label>
+              Nova senha
+              <input name="password" type="password" required minLength={10} autoComplete="new-password" />
+            </label>
+            <label>
+              Confirme a nova senha
+              <input name="confirmation" type="password" required minLength={10} autoComplete="new-password" />
+            </label>
+            <p className="passwordHint">10+ caracteres, maiúscula, minúscula, número e símbolo.</p>
+            <button className="button dark" disabled={loading}>
+              {loading ? 'Salvando...' : 'Atualizar senha'}
+            </button>
+          </form>
+          {message && <p className="notice">{message}</p>}
+          <div className="loginUtilities">
+            <Link className="textLink" href="/login">
+              Ir para entrar
+            </Link>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </>
+  );
+}

@@ -5,11 +5,19 @@ import { checkRateLimit, requestClientKey } from '../../../lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
-    if (!checkRateLimit(`contact:${requestClientKey(req)}`, 5, 60 * 60 * 1000)) {
-      return NextResponse.json({ error: 'Recebemos muitas mensagens deste endereço. Aguarde alguns minutos para tentar novamente.' }, { status: 429 });
+    if (!(await checkRateLimit(`contact:${requestClientKey(req)}`, 5, 60 * 60 * 1000))) {
+      return NextResponse.json(
+        { error: 'Recebemos muitas mensagens deste endereço. Aguarde alguns minutos para tentar novamente.' },
+        { status: 429 },
+      );
     }
-    const body = await req.json() as { name?: string; email?: string; subject?: string; message?: string };
-    await createContactMessage({ name: String(body.name || ''), email: String(body.email || ''), subject: String(body.subject || ''), message: String(body.message || '') });
+    const body = (await req.json()) as { name?: string; email?: string; subject?: string; message?: string };
+    await createContactMessage({
+      name: String(body.name || ''),
+      email: String(body.email || ''),
+      subject: String(body.subject || ''),
+      message: String(body.message || ''),
+    });
     const adminEmail = process.env.ADMIN_EMAIL?.trim();
     if (adminEmail) {
       try {
