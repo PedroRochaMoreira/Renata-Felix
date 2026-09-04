@@ -14,7 +14,7 @@ export default function Home() {
   useEffect(() => { fetch('/api/catalog').then(response => response.ok ? response.json() : null).then(data => { if (data?.products) setCatalog(data.products); }).catch(() => undefined); }, []);
   const newArrivals = catalog.filter(product => product.isNew).slice(0, 4);
 
-  return <><Header /><main>
+  return <><Header /><main id="conteudo">
     <section className="hero heroLuxury">
       <Image priority src="https://images.unsplash.com/photo-1581044777550-4cfa60707c03?auto=format&fit=crop&w=2200&q=90" alt="Mulher vestindo peça da curadoria Renata Felix" fill sizes="100vw" />
       <div className="heroVeil" />
@@ -24,7 +24,7 @@ export default function Home() {
 
     <section className="manifesto"><div className="manifestoMark">RF</div><div><span className="eyebrow">A nossa seleção</span><h2 className="serif">Uma loja para mulheres que escolhem <em>menos, e melhor.</em></h2></div><p>Em vez de excessos, reunimos formas que atravessam momentos: vestidos, alfaiataria e essenciais escolhidos por caimento, conforto e personalidade.</p></section>
 
-    {newArrivals.length > 0 && <section className="section productShowcase"><div className="sectionHead"><div><span className="eyebrow">Chegaram agora</span><h2 className="serif">Novidades que merecem atenção.</h2></div><Link href="/loja?filtro=novidades" className="textLink">Ver todas <ArrowRight size={13} /></Link></div><div className="grid">{newArrivals.map(product => <ProductCard product={product} key={product.id} />)}</div></section>}
+    {newArrivals.length > 0 && <section className="section productShowcase"><div className="sectionHead"><div><span className="eyebrow">Chegaram agora</span><h2 className="serif">Novidades que merecem atenção.</h2></div><Link href="/loja?filtro=novidades" className="textLink">Ver todas <ArrowRight size={13} /></Link></div><div className="grid">{newArrivals.map((product, index) => <ProductCard product={product} key={product.id} priority={index < 4} />)}</div></section>}
 
     <section className="splitFeature"><Link href="/loja?categoria=Alfaiataria" className="splitFeatureImage"><Image src="https://images.unsplash.com/photo-1591369822096-ffd140ec948f?auto=format&fit=crop&w=1500&q=88" alt="Alfaiataria feminina" fill sizes="(max-width: 760px) 100vw, 52vw" /><span className="imageCaption">01 / Alfaiataria</span></Link><div className="splitFeatureCopy"><span className="eyebrow">Escolhas que ficam</span><h2 className="serif">O refinamento está nos detalhes que você sente.</h2><p>Linhas precisas, texturas especiais e proporções que fazem uma peça ser lembrada muito depois do primeiro uso.</p><Link href="/loja?categoria=Alfaiataria" className="button dark">Conhecer alfaiataria <ArrowRight size={14} /></Link></div></section>
 

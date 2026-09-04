@@ -9,6 +9,9 @@ type Store = {
   favorites: string[];
   shipping: ShippingOption | null;
   hydrated: boolean;
+  /** Abre a sacola lateral; `add` liga sozinho para confirmar o que entrou. */
+  cartOpen: boolean;
+  setCartOpen: (open: boolean) => void;
   add: (id: string, size: string, maxQuantity?: number, color?: string) => void;
   remove: (id: string, size: string, color?: string) => void;
   setQuantity: (id: string, size: string, quantity: number, maxQuantity?: number, color?: string) => void;
@@ -79,15 +82,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [shipping, setShipping] = useState<ShippingOption | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
     setCart(readCart(readLocal<unknown>('rf-cart', [])));
     setFavorites(readLocal<string[]>('rf-favorites', []));
     setShipping(readLocal<ShippingOption | null>('rf-shipping', null));
     setHydrated(true);
+    // Quem favorita deslogada e depois entra não pode perder as escolhas:
+    // o que veio do servidor é unido ao que estava salvo neste navegador.
+    const locais = readLocal<string[]>('rf-favorites', []);
     fetch('/api/account/favorites')
       .then(response => response.ok ? response.json() : null)
-      .then(data => { if (Array.isArray(data?.favorites)) setFavorites(data.favorites); })
+      .then(data => {
+        if (!Array.isArray(data?.favorites)) return;
+        const unidos = [...new Set([...data.favorites as string[], ...locais])];
+        setFavorites(unidos);
+        if (unidos.length > data.favorites.length) persistFavorites(unidos);
+      })
       .catch(() => undefined);
   }, []);
 
@@ -95,13 +107,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (hydrated) localStorage.setItem('rf-favorites', JSON.stringify(favorites)); }, [favorites, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem('rf-shipping', JSON.stringify(shipping)); }, [shipping, hydrated]);
 
-  const add = (id: string, size: string, maxQuantity = 99, color = '') => setCart(current => {
-    const limit = stockLimit(maxQuantity);
-    if (quantityForProduct(current, id) >= limit) return current;
-    const existing = current.find(item => sameCartLine(item, id, size, color));
-    if (existing) return current.map(item => sameCartLine(item, id, size, color) ? { ...item, qty: item.qty + 1 } : item);
-    return [...current, { id, size, color: color || undefined, qty: 1 }];
-  });
+  const add = (id: string, size: string, maxQuantity = 99, color = '') => {
+    setCart(current => {
+      const limit = stockLimit(maxQuantity);
+      if (quantityForProduct(current, id) >= limit) return current;
+      const existing = current.find(item => sameCartLine(item, id, size, color));
+      if (existing) return current.map(item => sameCartLine(item, id, size, color) ? { ...item, qty: item.qty + 1 } : item);
+      return [...current, { id, size, color: color || undefined, qty: 1 }];
+    });
+    setCartOpen(true);
+  };
 
   const setQuantity = (id: string, size: string, quantity: number, maxQuantity = 99, color = '') => setCart(current => {
     const limit = stockLimit(maxQuantity);
@@ -133,11 +148,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   });
 
   return <Context.Provider value={{
-    cart, favorites, shipping, hydrated, add,
+    cart, favorites, shipping, hydrated, cartOpen, setCartOpen, add,
     remove: (id, size, color) => setCart(current => current.filter(item => item.id !== id || item.size !== size || (color !== undefined && (item.color || '') !== color))),
     setQuantity,
     setVariant,
-    clearCart: () => { setCart([]); setShipping(null); },
+    clearCart: () => { setCart([]); setShipping(null); setCartOpen(false); },
     setShipping,
     toggleFavorite,
   }}>{children}</Context.Provider>;

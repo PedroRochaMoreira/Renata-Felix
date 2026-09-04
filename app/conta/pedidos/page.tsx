@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { CalendarDays, CheckCircle2, Clock3, Truck, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { formatPrice } from '../../data';
+import { formatPrice } from '@/app/data';
+import { ListSkeleton } from '@/app/skeletons';
 
 type Status = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 type Order = {
@@ -36,7 +37,7 @@ export default function Pedidos() {
     return () => { active = false; };
   }, []);
 
-  if (!orders) return <p className="info">Carregando seus pedidos...</p>;
+  if (!orders) return <><h2 className="serif">Seus pedidos</h2><ListSkeleton label="Carregando seus pedidos" /></>;
   return <><h2 className="serif">Seus pedidos</h2><p className="info">Acompanhe cada etapa da sua compra por aqui.</p>{error && <p className="notice">{error}</p>}{orders.length ? <div className="ordersList">{orders.map(order => {
     const Icon = icons[order.status];
     return <article key={order.id}><div><span className="eyebrow">Pedido #{order.id.slice(-6).toUpperCase()}</span><b><CalendarDays size={13} /> {date(order.createdAt)}</b></div><span className={`orderStatus ${order.status.toLowerCase()}`}><Icon size={12} /> {labels[order.status]}</span><p>{order.items.map(item => `${item.name}${item.color ? ` · ${item.color}` : ''} · ${item.size} × ${item.quantity}`).join(', ')}</p><div className="orderDelivery">{order.shipping ? <><Truck size={14} /><span>{order.shipping.company} · {order.shipping.name}{order.shipping.deliveryTime ? ` · até ${order.shipping.deliveryTime} dias úteis` : ''}</span></> : <span>Entrega será confirmada após o pagamento.</span>}</div><strong>{formatPrice(order.total)}</strong></article>;

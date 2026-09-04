@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '../../../../lib/auth';
-import { listOrdersWithCustomers, setOrderStatus, type OrderStatus } from '../../../../lib/store';
+import { requireAdmin } from '@/lib/auth';
+import { listOrdersWithCustomers, setOrderStatus, type OrderStatus } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 

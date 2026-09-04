@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { ArrowUpRight, Clock3, Instagram, MapPin, MessageCircle, Phone, Send, ShieldCheck } from 'lucide-react';
-import { Footer, Header } from '../components';
+import { Footer, Header } from '@/app/components';
 
 type FormStatus = { tone: 'success' | 'error'; text: string } | null;
 
@@ -44,7 +44,7 @@ export default function Contato() {
 
   return <>
     <Header />
-    <main className="contactPage contactExperience">
+    <main id="conteudo" className="contactPage contactExperience">
       <section className="contactHero" aria-labelledby="contact-title">
         <div className="contactHeroCopy">
           <span className="eyebrow">Atendimento Renata Felix</span>

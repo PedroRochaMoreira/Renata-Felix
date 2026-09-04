@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ArrowUpRight, ImagePlus, PackagePlus, Pencil, Trash2 } from 'lucide-react';
-import { Footer, Header } from '../components';
-import { Product } from '../data';
-import { productColors, productColorTone } from '../../lib/product-variants';
+import { Footer, Header } from '@/app/components';
+import { Product } from '@/app/data';
+import { productColors, productColorTone } from '@/lib/product-variants';
+import { useToast } from '@/app/toast';
 
 type User = { name: string; role: string };
 
@@ -35,6 +36,7 @@ export default function Admin() {
   const [color, setColor] = useState('Preto');
   const [customColor, setCustomColor] = useState('');
   const [message, setMessage] = useState('');
+  const { notify } = useToast();
 
   const reload = () => Promise.all([
     fetch('/api/auth/me').then(response => response.json()),
@@ -54,7 +56,7 @@ export default function Admin() {
   const categories = useMemo(() => Array.from(new Set([...defaultCategories, ...items.map(item => item.cat)])).sort(), [items]);
   const colors = useMemo(() => Array.from(new Set([...defaultColors, ...items.map(item => item.color)])).sort(), [items]);
   const colorPreview = color === 'Outro' ? customColor : color;
-  const flash = (text: string) => { setMessage(text); window.setTimeout(() => setMessage(''), 4200); };
+  const flash = (text: string) => notify(text);
 
   async function addProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,6 +83,21 @@ export default function Admin() {
       setColor('Preto');
       setCustomColor('');
       flash('Peça publicada e pronta para aparecer na loja.');
+    } catch {
+      flash('Não foi possível conectar ao servidor. Tente novamente.');
+    }
+  }
+
+  async function removeImage(url: string) {
+    if (!window.confirm('Apagar esta foto do armazenamento? A ação não pode ser desfeita.')) return;
+    try {
+      const response = await fetch('/api/admin/gallery', {
+        method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return flash(data.error || 'Não foi possível apagar a foto.');
+      setGallery(data.images || []);
+      flash('Foto apagada do armazenamento.');
     } catch {
       flash('Não foi possível conectar ao servidor. Tente novamente.');
     }
@@ -133,13 +150,13 @@ export default function Admin() {
     flash('Peça removida do catálogo.');
   }
 
-  if (loading) return <><Header /><main className="adminGate">Carregando painel...</main><Footer /></>;
+  if (loading) return <><Header /><main id="conteudo" className="adminGate">Carregando painel...</main><Footer /></>;
   if (!user) return <Gate />;
-  if (user.role !== 'ADMIN') return <><Header /><main className="adminGate"><span className="eyebrow">Acesso restrito</span><h1 className="serif">Esta área é exclusiva da administração.</h1><p>Entre com uma conta autorizada para continuar.</p><Link className="button dark" href="/login">Ir para login</Link></main><Footer /></>;
+  if (user.role !== 'ADMIN') return <><Header /><main id="conteudo" className="adminGate"><span className="eyebrow">Acesso restrito</span><h1 className="serif">Esta área é exclusiva da administração.</h1><p>Entre com uma conta autorizada para continuar.</p><Link className="button dark" href="/login">Ir para login</Link></main><Footer /></>;
 
   return <>
     <Header />
-    <main className="adminPage">
+    <main id="conteudo" className="adminPage">
       <div className="adminIntro">
         <span className="eyebrow">Administração</span>
         <h1 className="serif">Olá, {user.name.split(' ')[0]}.</h1>
@@ -182,6 +199,15 @@ export default function Admin() {
         </section>
       </div>
 
+      <section className="adminCard galleryCard">
+        <div className="adminCardTitle"><div><span className="eyebrow">Armazenamento</span><h2 className="serif">Fotos enviadas</h2></div><span className="adminCount">{gallery.length}</span></div>
+        <p className="info">Fotos que não pertencem a nenhuma peça continuam ocupando espaço. Uma foto em uso não pode ser apagada.</p>
+        {gallery.length ? <div className="galleryGrid">{gallery.map(source => <figure key={source}>
+          <img src={source} alt="" loading="lazy" />
+          <button type="button" className="removeProduct" onClick={() => removeImage(source)} aria-label={`Apagar a foto ${source.split('/').pop()}`}><Trash2 size={15} /></button>
+        </figure>)}</div> : <p className="info">Nenhuma foto enviada ainda.</p>}
+      </section>
+
       <section className="adminAccess"><div><span className="eyebrow">Equipe</span><h2 className="serif">Administradores</h2><p>Conceda acesso pelo e-mail de uma conta já criada na loja.</p></div><form onSubmit={promote}><input name="email" type="email" required placeholder="conta@exemplo.com" /><button className="button light">Conceder acesso</button></form></section>
 
       <section className="inventoryPanel">
@@ -196,5 +222,5 @@ export default function Admin() {
 }
 
 function Gate() {
-  return <><Header /><main className="adminGate"><span className="eyebrow">Painel administrativo</span><h1 className="serif">Entre para gerenciar sua loja.</h1><p>Use uma conta de administradora para acessar o painel.</p><Link className="button dark" href="/login">Entrar</Link></main><Footer /></>;
+  return <><Header /><main id="conteudo" className="adminGate"><span className="eyebrow">Painel administrativo</span><h1 className="serif">Entre para gerenciar sua loja.</h1><p>Use uma conta de administradora para acessar o painel.</p><Link className="button dark" href="/login">Entrar</Link></main><Footer /></>;
 }

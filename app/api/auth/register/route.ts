@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createUser, issueEmailVerification, makeSession, publicUser } from '../../../../lib/store';
-import { escapeHtml, sendEmail } from '../../../../lib/email';
-import { checkRateLimit, requestClientKey } from '../../../../lib/rate-limit';
+import { createUser, issueEmailVerification, makeSession, publicUser } from '@/lib/store';
+import { escapeHtml, sendEmail } from '@/lib/email';
+import { checkRateLimit, requestClientKey } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
-    if (!checkRateLimit(`register:${requestClientKey(req)}`, 5, 60 * 60 * 1000)) return NextResponse.json({ error: 'Muitas tentativas. Aguarde alguns minutos para criar uma conta.' }, { status: 429 });
+    if (!await checkRateLimit(`register:${requestClientKey(req)}`, 5, 60 * 60 * 1000)) return NextResponse.json({ error: 'Muitas tentativas. Aguarde alguns minutos para criar uma conta.' }, { status: 429 });
     const { name, email, password } = await req.json();
     if (!name || !email || !password) return NextResponse.json({ error: 'Preencha todos os dados.' }, { status: 400 });
     const user = await createUser(String(name), String(email), String(password));

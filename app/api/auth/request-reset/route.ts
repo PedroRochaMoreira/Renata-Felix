@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { issuePasswordReset } from '../../../../lib/store';
-import { escapeHtml, sendEmail } from '../../../../lib/email';
-import { checkRateLimit, requestClientKey } from '../../../../lib/rate-limit';
+import { issuePasswordReset } from '@/lib/store';
+import { escapeHtml, sendEmail } from '@/lib/email';
+import { checkRateLimit, requestClientKey } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   const message = 'Se existir uma conta com este e-mail, enviaremos as instruções de recuperação.';
   try {
-    if (!checkRateLimit(`password-reset:${requestClientKey(req)}`, 4, 60 * 60 * 1000)) return NextResponse.json({ message });
+    if (!await checkRateLimit(`password-reset:${requestClientKey(req)}`, 4, 60 * 60 * 1000)) return NextResponse.json({ message });
     const { email } = await req.json(); const reset = await issuePasswordReset(String(email || ''));
     if (reset) {
       const base = (process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin).replace(/\/$/, '');

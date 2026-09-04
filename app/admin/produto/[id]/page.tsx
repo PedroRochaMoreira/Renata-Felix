@@ -3,9 +3,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Footer, Header } from '../../../components';
-import { Product } from '../../../data';
-import { productColors, productColorTone } from '../../../../lib/product-variants';
+import { Footer, Header } from '@/app/components';
+import { Product } from '@/app/data';
+import { productColors, productColorTone } from '@/lib/product-variants';
 
 const baseCategories = ['Vestidos', 'Alfaiataria', 'Camisas', 'Tricots', 'Saias', 'Casacos', 'Conjuntos'];
 const baseColors = ['Preto', 'Off white', 'Areia', 'Chocolate', 'Caramelo', 'Azul-marinho'];
@@ -89,11 +89,11 @@ export default function EditarProduto() {
     }
   }
 
-  if (!product) return <><Header /><main className="editorPage">Carregando peça...</main><Footer /></>;
+  if (!product) return <><Header /><main id="conteudo" className="editorPage">Carregando peça...</main><Footer /></>;
 
   return <>
     <Header />
-    <main className="editorPage">
+    <main id="conteudo" className="editorPage">
       <Link className="textLink" href="/admin">← Voltar ao painel</Link>
       <div className="editorHeading"><span className="eyebrow">Controle de estoque</span><h1 className="serif">Editar {product.name}</h1><p>Atualize todos os dados da peça e mantenha uma galeria de até oito fotos.</p></div>
       <form className="editorLayout" onSubmit={submit}>

@@ -11,7 +11,7 @@ type LegalDocumentProps = {
 export function LegalDocument({ eyebrow, title, updatedAt, children }: LegalDocumentProps) {
   return <>
     <Header />
-    <main className="legalPage">
+    <main id="conteudo" className="legalPage">
       <header className="legalHero">
         <span className="eyebrow">{eyebrow}</span>
         <h1 className="serif">{title}</h1>

@@ -1,4 +1,4 @@
-import { seedProducts, type Product } from '../app/data';
+import { seedProducts, type Product } from '@/app/data';
 import { inventory, listProducts, overrides } from './store';
 
 /**
@@ -21,7 +21,9 @@ function validImages(images: unknown, fallback: string) {
  */
 export async function getCatalog(): Promise<Product[]> {
   const [stock, edited, customProducts] = await Promise.all([inventory(), overrides(), listProducts()]);
-  const base = useSeedCatalog ? [...customProducts, ...seedProducts] : customProducts;
+  // As peças de demonstração não têm estoque real; recebem um valor fictício
+  // para que a vitrine de exemplo não apareça inteira como esgotada.
+  const base = useSeedCatalog ? [...customProducts, ...seedProducts.map(product => ({ ...product, stock: product.stock ?? 10 }))] : customProducts;
   return base.filter(product => !stock[product.id]?.deleted).map(product => {
     const merged = { ...product, ...edited[product.id] } as Product;
     const images = validImages(merged.images, merged.img);

@@ -16,7 +16,7 @@ export default function FeaturedIcons() {
   useEffect(() => {
     Promise.all([
       fetch('/api/catalog').then(response => response.ok ? response.json() : null),
-      fetch('/api/admin/featured').then(response => response.ok ? response.json() : null),
+      fetch('/api/featured').then(response => response.ok ? response.json() : null),
     ]).then(([catalog, featured]) => {
       const products: Product[] = Array.isArray(catalog?.products) ? catalog.products : [];
       const ids: string[] = Array.isArray(featured?.ids) ? featured.ids : [];

@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '../../../../lib/auth';
-import { issueEmailVerification } from '../../../../lib/store';
-import { escapeHtml, sendEmail } from '../../../../lib/email';
-import { checkRateLimit, requestClientKey } from '../../../../lib/rate-limit';
+import { requireUser } from '@/lib/auth';
+import { issueEmailVerification } from '@/lib/store';
+import { escapeHtml, sendEmail } from '@/lib/email';
+import { checkRateLimit, requestClientKey } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
     const user = await requireUser();
-    if (!checkRateLimit(`verify-email:${user.id}:${requestClientKey(req)}`, 3, 60 * 60 * 1000)) {
+    if (!await checkRateLimit(`verify-email:${user.id}:${requestClientKey(req)}`, 3, 60 * 60 * 1000)) {
       return NextResponse.json({ error: 'Aguarde alguns minutos antes de solicitar outro link.' }, { status: 429 });
     }
     const verification = await issueEmailVerification(user.id);
