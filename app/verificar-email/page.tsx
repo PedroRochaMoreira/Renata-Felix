@@ -26,7 +26,7 @@ export default function VerificarEmail() {
   return (
     <>
       <Header />
-      <main className="checkoutPage">
+      <main id="conteudo" tabIndex={-1} className="checkoutPage">
         <div className="empty">
           <span className="eyebrow">Segurança da conta</span>
           <h1 className="serif">Confirmação de e-mail</h1>

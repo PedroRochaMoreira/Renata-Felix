@@ -20,7 +20,7 @@ export default function Favoritos() {
   return (
     <>
       <Header />
-      <main className="catalog">
+      <main id="conteudo" tabIndex={-1} className="catalog">
         <div className="catalogTitle">
           <span className="eyebrow">Suas escolhas</span>
           <h1 className="serif">Favoritos</h1>

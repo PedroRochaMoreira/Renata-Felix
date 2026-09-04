@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono&family=Manrope:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
-
 :root {
   --ink: #191716;
   --muted: #716e69;
@@ -8,6 +6,10 @@
   --cream-dark: #e9e0d4;
   --line: #e7e0d7;
   --gold: #b69360;
+  /* O dourado da marca tem 2,82:1 sobre o papel, abaixo dos 4,5:1 que o WCAG
+     exige para texto. Ele continua valendo como traço decorativo; textos e
+     ícones sobre fundo claro usam este tom escurecido, que chega a 5,24:1. */
+  --gold-text: #856632;
   --gold-light: #dbc39d;
   --red: #a2463d;
   --shadow: 0 24px 60px rgba(36, 29, 22, 0.08);
@@ -22,7 +24,7 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: Manrope, Arial, sans-serif;
+  font-family: var(--font-sans), Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -36,6 +38,13 @@ select,
 textarea {
   font: inherit;
 }
+/* O Safari no iOS aplica zoom automático em qualquer campo abaixo de 16px, o
+   que desalinhava a tela a cada toque no checkout. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
 button {
   cursor: pointer;
 }
@@ -47,14 +56,14 @@ img {
   max-width: 100%;
 }
 .serif {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-serif), Georgia, serif;
 }
 .eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -66,7 +75,7 @@ img {
 }
 .price {
   font:
-    500 11px 'DM Mono',
+    500 13px var(--font-mono),
     monospace;
   letter-spacing: 0.02em;
 }
@@ -92,7 +101,7 @@ img {
 .nav a {
   position: relative;
   padding: 6px 0;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -115,7 +124,7 @@ img {
 }
 .brand {
   font:
-    400 27px/1 'Playfair Display',
+    400 27px/1 var(--font-serif),
     Georgia,
     serif;
   letter-spacing: 0.05em;
@@ -167,7 +176,7 @@ img {
   background: var(--gold);
   color: #fff;
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
 }
 .mobileMenuButton {
@@ -187,7 +196,7 @@ img {
   border: 1px solid currentColor;
   background: transparent;
   color: inherit;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -224,14 +233,14 @@ img {
   border-bottom: 1px solid currentColor;
   background: transparent;
   color: var(--ink);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   transition: color 0.2s;
 }
 .textLink:hover {
-  color: var(--gold);
+  color: var(--gold-text);
 }
 .fullButton {
   width: 100%;
@@ -239,7 +248,7 @@ img {
 .notice {
   margin: 15px 0 0;
   color: #715531;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.7;
 }
 .loadingPage {
@@ -301,7 +310,7 @@ img {
   align-items: center;
   gap: 8px;
   color: #fff;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.04em;
 }
 .heroFootnote {
@@ -314,7 +323,7 @@ img {
   justify-content: space-between;
   color: rgba(255, 255, 255, 0.72);
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -336,9 +345,9 @@ img {
   height: 75px;
   border: 1px solid var(--gold);
   border-radius: 50%;
-  color: var(--gold);
+  color: var(--gold-text);
   font:
-    25px 'Playfair Display',
+    25px var(--font-serif),
     serif;
 }
 .manifesto h2 {
@@ -417,7 +426,7 @@ img {
   padding: 7px 8px;
   background: rgba(255, 253, 250, 0.94);
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   letter-spacing: 0.11em;
   text-transform: uppercase;
@@ -442,7 +451,7 @@ img {
 }
 .productMeta span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .productMeta .price {
   padding-top: 2px;
@@ -482,7 +491,7 @@ img {
   left: 30px;
   color: #fff;
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -599,7 +608,7 @@ img {
 }
 .newsletterStatus {
   margin-top: 12px !important;
-  font-size: 11px !important;
+  font-size: 13px !important;
 }
 
 .footer {
@@ -628,11 +637,11 @@ img {
   font-size: 12px;
   line-height: 1.8;
 }
-.footer h4 {
+.footer h3 {
   margin: 6px 0 18px;
   color: var(--gold-light);
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -642,7 +651,7 @@ img {
   display: block;
   margin: 0 0 11px;
   color: #c5bfb8;
-  font-size: 11px;
+  font-size: 13px;
 }
 .footer a:hover {
   color: #fff;
@@ -663,7 +672,7 @@ img {
   border-top: 1px solid #3a3632;
   color: #89837d;
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -719,7 +728,7 @@ img {
 .filters a {
   flex: none;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -762,7 +771,7 @@ img {
   background: transparent;
   outline: 0;
   font:
-    clamp(25px, 3vw, 40px) 'Playfair Display',
+    clamp(25px, 3vw, 40px) var(--font-serif),
     serif;
 }
 .searchField::placeholder {
@@ -786,7 +795,7 @@ img {
   margin-bottom: 26px;
   overflow: auto;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -805,6 +814,10 @@ img {
 }
 .mainProductImage {
   position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
   overflow: hidden;
   background: var(--cream);
   aspect-ratio: 3/4;
@@ -864,7 +877,7 @@ img {
 .installments {
   margin: 10px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 .productRule {
   height: 1px;
@@ -878,7 +891,7 @@ img {
 }
 .sizeTitle > span:last-child {
   font:
-    10px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   color: var(--muted);
 }
@@ -895,7 +908,7 @@ img {
   border: 1px solid #cfc7bd;
   background: #fff;
   color: var(--ink);
-  font-size: 10px;
+  font-size: 12px;
   transition: all 0.2s;
 }
 .size:hover,
@@ -915,7 +928,7 @@ img {
   border-bottom: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
-  font-size: 11px;
+  font-size: 13px;
   text-align: left;
 }
 .measureGuide span {
@@ -927,7 +940,7 @@ img {
   padding: 13px;
   background: var(--cream);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.8;
 }
 .addToBag {
@@ -943,7 +956,7 @@ img {
   padding: 14px 0;
   border-top: 1px solid var(--line);
   color: #4f4a45;
-  font-size: 11px;
+  font-size: 13px;
 }
 .productDescription summary {
   cursor: pointer;
@@ -993,7 +1006,7 @@ img {
 .cartItemInfo p {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 .cartItemSide {
   display: flex;
@@ -1009,7 +1022,7 @@ img {
   border: 0;
   background: none;
   color: var(--red);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1033,7 +1046,7 @@ img {
   place-items: center;
   width: 32px;
   font:
-    10px 'DM Mono',
+    12px var(--font-mono),
     monospace;
 }
 .summary {
@@ -1048,7 +1061,7 @@ img {
   gap: 20px;
   margin: 15px 0;
   color: #57514a;
-  font-size: 11px;
+  font-size: 13px;
 }
 .summary hr {
   border: 0;
@@ -1060,7 +1073,7 @@ img {
   font-size: 13px;
 }
 .summaryHint {
-  font-size: 10px !important;
+  font-size: 12px !important;
   line-height: 1.7;
 }
 .shippingBox {
@@ -1112,15 +1125,15 @@ img {
 .shippingOption span {
   display: grid;
   gap: 2px;
-  font-size: 11px;
+  font-size: 13px;
 }
 .shippingOption small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .shippingOption strong {
   font:
-    10px 'DM Mono',
+    12px var(--font-mono),
     monospace;
 }
 
@@ -1151,7 +1164,7 @@ img {
   gap: 7px;
   color: #5c554f;
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1194,7 +1207,7 @@ img {
   display: grid;
   gap: 5px;
   margin: 9px 0 0;
-  font-size: 11px;
+  font-size: 13px;
 }
 .checkoutShipping p span {
   color: var(--muted);
@@ -1205,7 +1218,7 @@ img {
   gap: 7px;
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .contactForm {
   max-width: 690px;
@@ -1289,7 +1302,7 @@ img {
   border-bottom: 2px solid transparent;
   background: none;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1307,7 +1320,7 @@ img {
   gap: 8px;
   color: #5c554f;
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.11em;
   text-transform: uppercase;
@@ -1333,7 +1346,7 @@ img {
   gap: 6px;
   margin: -4px 0 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.6;
 }
 .loggedBox {
@@ -1351,9 +1364,9 @@ img {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: var(--gold);
+  color: var(--gold-text);
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1392,11 +1405,11 @@ img {
   grid-column: 1/-1;
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 .ordersList strong {
   font:
-    11px 'DM Mono',
+    13px var(--font-mono),
     monospace;
 }
 .orderStatus {
@@ -1404,7 +1417,7 @@ img {
   padding: 6px 8px;
   background: var(--cream);
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -1440,13 +1453,13 @@ img {
 .accountNav a {
   padding: 14px 0;
   border-bottom: 1px solid var(--line);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 .accountNav a:hover {
-  color: var(--gold);
+  color: var(--gold-text);
 }
 .accountLayout > section > h2 {
   margin: 0 0 10px;
@@ -1519,9 +1532,9 @@ img {
 }
 .valueList b {
   grid-row: 1/3;
-  color: var(--gold);
+  color: var(--gold-text);
   font:
-    11px 'DM Mono',
+    13px var(--font-mono),
     monospace;
 }
 .valueList h3 {
@@ -1576,7 +1589,7 @@ img {
 }
 .storeExperience p:first-child {
   font:
-    33px/1.15 'Playfair Display',
+    33px/1.15 var(--font-serif),
     serif;
   color: var(--ink);
 }
@@ -1618,7 +1631,7 @@ img {
   gap: 7px;
   color: #5c554f;
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1631,7 +1644,7 @@ img {
   align-items: center;
   gap: 9px;
   font:
-    11px Manrope,
+    13px var(--font-sans),
     sans-serif;
   letter-spacing: 0;
   text-transform: none;
@@ -1702,7 +1715,7 @@ img {
   background: var(--ink);
   color: #fff;
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   text-transform: uppercase;
 }
@@ -1714,14 +1727,14 @@ img {
   background: var(--cream);
   color: #5c554f;
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 .uploadLabel input {
   font:
-    11px Manrope,
+    13px var(--font-sans),
     sans-serif;
   text-transform: none;
 }
@@ -1731,7 +1744,7 @@ img {
   border-top: 1px solid var(--line);
   color: #5c554f;
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1756,7 +1769,7 @@ img {
   object-fit: cover;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1024px) {
   .header {
     grid-template-columns: auto 1fr auto;
   }
@@ -1794,7 +1807,7 @@ img {
   .mobileNav a {
     padding: 13px 0;
     border-bottom: 1px solid var(--line);
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.09em;
     text-transform: uppercase;
@@ -1860,11 +1873,11 @@ img {
     margin-top: 27px;
   }
   .heroTextLink {
-    font-size: 10px;
+    font-size: 12px;
   }
   .heroFootnote {
     bottom: 23px;
-    font-size: 8px;
+    font-size: 11px;
   }
   .heroFootnote span:last-child {
     display: none;
@@ -1910,7 +1923,7 @@ img {
     padding-top: 10px;
   }
   .productMeta p {
-    font-size: 11px;
+    font-size: 13px;
   }
   .productMeta .price {
     display: block;
@@ -1920,7 +1933,7 @@ img {
     top: 8px;
     left: 8px;
     padding: 5px;
-    font-size: 7px;
+    font-size: 11px;
   }
   .fav {
     top: 7px;
@@ -2146,7 +2159,7 @@ img {
   background: transparent;
   color: #c5bfb8;
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2187,7 +2200,7 @@ img {
   margin-top: 21px;
   color: #938d86;
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2231,7 +2244,7 @@ img {
   padding-left: 19px;
 }
 .legalContent li::marker {
-  color: var(--gold);
+  color: var(--gold-text);
 }
 .legalContent a {
   color: var(--ink);
@@ -2268,7 +2281,7 @@ img {
   max-width: 430px;
   margin: 0;
   color: #d8d0c8;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.75;
 }
 .cookieConsent .cookieDetails {
@@ -2279,7 +2292,7 @@ img {
   display: inline-block;
   margin-top: 13px;
   color: #fff;
-  font-size: 10px;
+  font-size: 12px;
   text-decoration: underline;
   text-decoration-color: var(--gold);
   text-underline-offset: 4px;
@@ -2292,7 +2305,7 @@ img {
 .cookieConsent .button {
   min-height: 40px;
   padding: 0 13px;
-  font-size: 8px;
+  font-size: 11px;
 }
 .cookieConsent .cookieNecessary {
   border-color: #82796f;
@@ -2346,7 +2359,7 @@ img {
   }
   .cookieConsent .button {
     padding: 0 8px;
-    font-size: 7px;
+    font-size: 11px;
   }
 }
 .ordersAdminPage {
@@ -2399,14 +2412,14 @@ img {
   color: #fff;
 }
 .orderStats span {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .orderStats b {
   font:
-    24px 'Playfair Display',
+    24px var(--font-serif),
     serif;
 }
 .ordersLoading {
@@ -2435,12 +2448,12 @@ img {
 .adminOrderCard h2 {
   margin: 8px 0 3px;
   font:
-    26px 'Playfair Display',
+    26px var(--font-serif),
     serif;
 }
 .adminOrderCard header a {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 .adminOrderStatus {
   display: grid;
@@ -2449,7 +2462,7 @@ img {
 }
 .adminOrderStatus small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 .orderStatus {
   display: inline-flex;
@@ -2470,7 +2483,7 @@ img {
   gap: 6px;
   color: var(--muted);
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2482,7 +2495,7 @@ img {
   background: var(--paper);
   color: var(--ink);
   font:
-    11px Manrope,
+    13px var(--font-sans),
     sans-serif;
   letter-spacing: 0;
   text-transform: none;
@@ -2507,12 +2520,12 @@ img {
   align-items: center;
   gap: 7px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .ordersList .orderStatus {
   justify-self: end;
 }
-@media (max-width: 800px) {
+@media (max-width: 760px) {
   .ordersAdminPage {
     padding: 48px 20px 85px;
   }
@@ -2545,7 +2558,7 @@ img {
     grid-column: 1/-1;
   }
 }
-@media (max-width: 500px) {
+@media (max-width: 520px) {
   .orderStats {
     grid-template-columns: 1fr;
   }
@@ -2578,18 +2591,18 @@ img {
 .verificationCard b {
   display: block;
   margin-bottom: 4px;
-  font-size: 11px;
+  font-size: 13px;
 }
 .verificationCard p {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.55;
 }
 .verificationCard .textLink {
   flex: none;
   padding: 3px 0;
-  font-size: 9px;
+  font-size: 12px;
   white-space: nowrap;
 }
 .verificationCard.isVerified {
@@ -2643,9 +2656,9 @@ img {
   margin-top: 28px;
 }
 .paymentResultActions .textLink {
-  font-size: 10px;
+  font-size: 12px;
 }
-@media (max-width: 480px) {
+@media (max-width: 520px) {
   .paymentResultActions {
     flex-direction: column;
     gap: 16px;
@@ -2687,7 +2700,7 @@ html {
 }
 .footerWordmark {
   font:
-    400 clamp(30px, 2.65vw, 40px)/0.96 'Playfair Display',
+    400 clamp(30px, 2.65vw, 40px)/0.96 var(--font-serif),
     Georgia,
     serif;
   letter-spacing: 0.018em;
@@ -2698,7 +2711,7 @@ html {
   gap: 9px;
   color: var(--gold-light);
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   letter-spacing: 0.19em;
   text-transform: uppercase;
@@ -2720,7 +2733,7 @@ html {
   padding-bottom: 4px;
   border-bottom: 1px solid var(--gold);
   color: #f8f2eb;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -2773,7 +2786,7 @@ html {
 .storeHours span {
   color: var(--gold-light);
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -2790,7 +2803,7 @@ html {
 .editorForm label,
 .loginForm label {
   font:
-    10px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.09em;
 }
@@ -2805,7 +2818,7 @@ html {
 .shippingBox input {
   min-height: 48px;
   font:
-    500 15px/1.45 Manrope,
+    500 15px/1.45 var(--font-sans),
     Arial,
     sans-serif;
   letter-spacing: 0;
@@ -2827,7 +2840,7 @@ html {
   margin-top: 21px;
 }
 .passwordHint {
-  font-size: 11px;
+  font-size: 13px;
 }
 .shippingBox input {
   padding: 12px 13px;
@@ -2860,7 +2873,7 @@ html {
   padding-bottom: 2px;
   border-bottom: 1px solid currentColor;
   color: #fff;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2887,7 +2900,7 @@ html {
 .storeExperienceHours > svg {
   flex: none;
   margin-top: 2px;
-  color: var(--gold);
+  color: var(--gold-text);
 }
 .storeExperienceHours div {
   display: grid;
@@ -2896,7 +2909,7 @@ html {
 .storeExperienceHours span {
   color: var(--muted);
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -2970,14 +2983,14 @@ html {
 .contactTeaserPhone small {
   color: #756d65;
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   letter-spacing: 0.13em;
   text-transform: uppercase;
 }
 .contactTeaserPhone strong {
   font:
-    500 17px 'Playfair Display',
+    500 17px var(--font-serif),
     Georgia,
     serif;
   letter-spacing: 0.02em;
@@ -3002,7 +3015,7 @@ html {
     font-size: 32px;
   }
   .footerSignatureDetail {
-    font-size: 7px;
+    font-size: 11px;
   }
   .grid {
     gap: 15px;
@@ -3019,7 +3032,7 @@ html {
   .profileForm label,
   .editorForm label,
   .loginForm label {
-    font-size: 10px;
+    font-size: 12px;
   }
   .formGrid input,
   .contactForm input,
@@ -3077,7 +3090,7 @@ html {
     padding: 16px;
   }
   .bagConfirmation a {
-    font-size: 9px;
+    font-size: 12px;
   }
 }
 
@@ -3112,7 +3125,7 @@ html {
   line-height: 0.91;
 }
 .contactHeroCopy h1 em {
-  color: var(--gold);
+  color: var(--gold-text);
   font-weight: 400;
 }
 .contactHeroCopy > p {
@@ -3133,7 +3146,7 @@ html {
 .contactHeroHours > svg {
   flex: none;
   margin-top: 2px;
-  color: var(--gold);
+  color: var(--gold-text);
 }
 .contactHeroHours div {
   display: grid;
@@ -3142,7 +3155,7 @@ html {
 .contactHeroHours span {
   color: var(--muted);
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -3198,7 +3211,7 @@ html {
 }
 .contactHeroAction small {
   color: #bdb4aa;
-  font-size: 10px;
+  font-size: 12px;
 }
 .contactHeroAction > svg:last-child {
   justify-self: end;
@@ -3244,7 +3257,7 @@ html {
 .contactReassurance p {
   margin: 0;
   color: #655e57;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.7;
 }
 .contactQuestions > .eyebrow {
@@ -3275,9 +3288,9 @@ html {
   right: 2px;
   top: -2px;
   content: '+';
-  color: var(--gold);
+  color: var(--gold-text);
   font:
-    20px/1 'Playfair Display',
+    20px/1 var(--font-serif),
     serif;
 }
 .contactQuestions details[open] summary:after {
@@ -3286,7 +3299,7 @@ html {
 .contactQuestions details p {
   margin: 10px 25px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.8;
 }
 .contactQuestions details a {
@@ -3317,7 +3330,7 @@ html {
   max-width: 225px;
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
 }
 .contactFormGrid {
@@ -3326,7 +3339,7 @@ html {
   gap: 20px 16px;
 }
 .contactFormRefined label {
-  font-size: 10px;
+  font-size: 12px;
 }
 .contactFormRefined input,
 .contactFormRefined textarea,
@@ -3386,7 +3399,7 @@ html {
 .contactFormStatus {
   margin: 0;
   color: #655e57;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.65;
 }
 .contactFormStatus.success {
@@ -3434,7 +3447,7 @@ html {
   justify-self: start;
   color: #342d27;
 }
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .contactExperience .contactHero,
   .contactConversation {
     grid-template-columns: 1fr;
@@ -3458,7 +3471,7 @@ html {
     align-items: start;
   }
 }
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .contactExperience .contactHero {
     padding: 56px 22px 65px;
     gap: 38px;
@@ -3547,7 +3560,7 @@ html {
 }
 .cartVariant > .eyebrow {
   color: #746b63;
-  font-size: 8px;
+  font-size: 11px;
 }
 .cartVariantChoices {
   gap: 6px;
@@ -3557,7 +3570,7 @@ html {
   min-width: 36px;
   height: 34px;
   padding: 0 8px;
-  font-size: 9px;
+  font-size: 12px;
 }
 .cartVariantStatic {
   display: inline-flex;
@@ -3580,11 +3593,11 @@ html {
 }
 .contactFormRefined select {
   font:
-    500 15px/1.45 Manrope,
+    500 15px/1.45 var(--font-sans),
     Arial,
     sans-serif;
 }
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .cartVariants {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -3643,7 +3656,7 @@ html {
   left: 29px;
   color: #fff;
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -3701,7 +3714,7 @@ html {
 .aboutStoreInfo small {
   color: var(--gold-light);
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -3829,7 +3842,7 @@ html {
 .cartLineWarning {
   margin: 8px 0 0;
   color: var(--red);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.5;
 }
 .pixPrice {
@@ -3839,13 +3852,13 @@ html {
 }
 .pixPrice strong {
   font:
-    500 14px 'DM Mono',
+    500 14px var(--font-mono),
     monospace;
-  color: var(--gold);
+  color: var(--gold-text);
 }
 .pixPrice small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 .productPrices {
   display: grid;
@@ -3854,10 +3867,10 @@ html {
 }
 .pricePix {
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.04em;
-  color: var(--gold);
+  color: var(--gold-text);
 }
 .paymentChoice {
   display: grid;
@@ -3889,32 +3902,32 @@ html {
   gap: 3px;
 }
 .paymentOption b {
-  font-size: 11px;
+  font-size: 13px;
 }
 .paymentOption small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.5;
 }
 .paymentOption strong {
   font:
-    500 12px 'DM Mono',
+    500 12px var(--font-mono),
     monospace;
 }
 .summaryDiscount {
-  color: var(--gold);
+  color: var(--gold-text);
 }
 .summaryPix {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin: 6px 0 0;
-  color: var(--gold);
+  color: var(--gold-text);
   font-size: 12px;
 }
 .summaryPix b {
   font:
-    500 12px 'DM Mono',
+    500 12px var(--font-mono),
     monospace;
 }
 .orderTotalLine {
@@ -3924,11 +3937,11 @@ html {
 }
 .orderPixTag {
   font:
-    8px 'DM Mono',
+    11px var(--font-mono),
     monospace;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--gold);
+  color: var(--gold-text);
 }
 
 .refineBar {
@@ -3956,7 +3969,7 @@ html {
   padding: 6px 12px;
   border: 1px solid var(--line);
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 13px;
   transition:
     border-color 0.2s,
     background 0.2s,
@@ -4022,7 +4035,7 @@ html {
 .stockAlertMessage {
   margin: 10px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.6;
 }
 @media (max-width: 520px) {
@@ -4040,7 +4053,7 @@ html {
   margin-bottom: 8px;
   color: var(--muted);
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.08em;
   text-align: left;
@@ -4050,18 +4063,248 @@ html {
 .measureTable td {
   padding: 7px 9px;
   border-bottom: 1px solid var(--line);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 400;
   text-align: left;
 }
 .measureTable thead th {
   color: var(--muted);
   font:
-    9px 'DM Mono',
+    12px var(--font-mono),
     monospace;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .measureTable tbody th {
   font-weight: 600;
+}
+
+/* Acessibilidade de base
+   ------------------------------------------------------------------ */
+
+/* Um único anel de foco para tudo que recebe teclado. Antes existia um
+   :focus-visible isolado em quatro mil linhas, e quem navegava por Tab não
+   enxergava onde estava. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+.button:focus-visible,
+.iconButton:focus-visible {
+  outline-offset: 4px;
+}
+
+/* Conteúdo só para leitor de tela. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Atalho para quem navega por teclado pular o cabeçalho a cada página. */
+.skipLink {
+  position: absolute;
+  z-index: 60;
+  top: 8px;
+  left: 8px;
+  padding: 11px 17px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 13px;
+  transform: translateY(-160%);
+  transition: transform 0.2s;
+}
+.skipLink:focus-visible {
+  transform: translateY(0);
+}
+
+/* Alvos de toque: a recomendação é 44px, e os ícones do cabeçalho tinham 33. */
+@media (pointer: coarse) {
+  .iconButton {
+    width: 44px;
+    height: 44px;
+  }
+  .size,
+  .refineChip {
+    min-height: 44px;
+  }
+}
+
+/* Respeita quem pediu menos movimento no sistema operacional. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Âncoras não podem parar atrás do cabeçalho fixo. */
+:target {
+  scroll-margin-top: 96px;
+}
+
+/* Estados de carregamento e de erro
+   ------------------------------------------------------------------ */
+
+.pageLoading {
+  max-width: 1420px;
+  margin: auto;
+  padding: clamp(40px, 6vw, 80px) clamp(20px, 4vw, 64px);
+}
+.skeletonHeading {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 38px;
+}
+.skeletonCard {
+  display: grid;
+  gap: 10px;
+}
+.skeleton {
+  display: block;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--cream) 25%, var(--cream-dark) 50%, var(--cream) 75%);
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+.skeletonImage {
+  aspect-ratio: 3/4;
+}
+.skeletonLine {
+  height: 12px;
+}
+.skeletonLine.short {
+  width: 42%;
+}
+.skeletonLine.title {
+  height: 34px;
+  width: 62%;
+}
+@keyframes skeletonPulse {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.pageError {
+  min-height: 58vh;
+}
+.pageErrorActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+/* Ampliação da foto da peça
+   ------------------------------------------------------------------ */
+
+.zoomHint {
+  position: absolute;
+  z-index: 2;
+  right: 14px;
+  bottom: 14px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 253, 250, 0.9);
+  color: var(--ink);
+  opacity: 0;
+  transition:
+    opacity 0.25s,
+    transform 0.25s;
+  transform: translateY(6px);
+}
+.mainProductImage:hover .zoomHint,
+.mainProductImage:focus-visible .zoomHint {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (pointer: coarse) {
+  .zoomHint {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lightbox {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  place-items: center;
+  gap: 16px;
+  padding: clamp(16px, 4vw, 48px);
+  background: rgba(20, 18, 16, 0.94);
+  animation: lightboxIn 0.2s ease-out;
+}
+@keyframes lightboxIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.lightboxImage {
+  max-width: min(100%, 820px);
+  max-height: 78vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.lightboxClose {
+  position: absolute;
+  top: clamp(12px, 3vw, 28px);
+  right: clamp(12px, 3vw, 28px);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 253, 250, 0.14);
+  color: #fff;
+  transition: background 0.2s;
+}
+.lightboxClose:hover {
+  background: rgba(255, 253, 250, 0.26);
+}
+.lightboxClose:focus-visible {
+  outline-color: var(--paper);
+}
+.lightboxThumbs {
+  display: flex;
+  gap: 9px;
+  overflow: auto;
+  max-width: 100%;
+  padding-bottom: 4px;
+}
+.lightboxThumbs button {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid transparent;
+  background: none;
+  line-height: 0;
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+.lightboxThumbs button.active,
+.lightboxThumbs button:hover {
+  border-color: var(--gold-light);
+  opacity: 1;
 }

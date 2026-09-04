@@ -15,7 +15,7 @@ export default function Sobre() {
   return (
     <>
       <Header />
-      <main className="aboutPage">
+      <main id="conteudo" tabIndex={-1} className="aboutPage">
         <section className="editorial">
           <div className="editorialCopy">
             <span className="eyebrow">Desde 2014</span>

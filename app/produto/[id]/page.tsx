@@ -86,7 +86,7 @@ export default async function ProdutoPage({ params }: PageProps) {
   return (
     <>
       <Header />
-      <main className="productPage">
+      <main id="conteudo" tabIndex={-1} className="productPage">
         <nav className="breadcrumbs" aria-label="Caminho da página">
           <Link href="/">Início</Link>
           <ChevronRight size={12} />

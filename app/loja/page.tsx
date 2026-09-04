@@ -33,7 +33,7 @@ export default async function Loja({ searchParams }: { searchParams: Promise<Sho
   return (
     <>
       <Header />
-      <main className="catalog">
+      <main id="conteudo" tabIndex={-1} className="catalog">
         <div className="catalogTitle">
           <span className="eyebrow">Curadoria Renata Felix</span>
           <h1 className="serif">{title}</h1>

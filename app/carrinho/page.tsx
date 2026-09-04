@@ -77,7 +77,7 @@ export default function Carrinho() {
     return (
       <>
         <Header />
-        <main className="cartPage loadingPage">Carregando sua sacola...</main>
+        <main id="conteudo" tabIndex={-1} className="cartPage loadingPage">Carregando sua sacola...</main>
         <Footer />
       </>
     );

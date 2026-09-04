@@ -46,7 +46,7 @@ export default function Contato() {
   return (
     <>
       <Header />
-      <main className="contactPage contactExperience">
+      <main id="conteudo" tabIndex={-1} className="contactPage contactExperience">
         <section className="contactHero" aria-labelledby="contact-title">
           <div className="contactHeroCopy">
             <span className="eyebrow">Atendimento Renata Felix</span>

@@ -56,7 +56,7 @@ export default function Login() {
   return (
     <>
       <Header />
-      <main className="loginPage">
+      <main id="conteudo" tabIndex={-1} className="loginPage">
         <section className="loginVisual">
           <div>
             <span className="eyebrow">Renata Felix</span>

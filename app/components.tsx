@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Heart, Instagram, Menu, Search, ShoppingBag, UserRound, X } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Product, formatPrice } from './data';
 import { pixUnitPrice } from '../lib/pricing';
 import { useStore } from './store';
@@ -20,11 +20,28 @@ const navigation = [
 export function Header() {
   const { cart, favorites } = useStore();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const closeMenu = () => setMenuOpen(false);
   const cartCount = cart.reduce((total, item) => total + item.qty, 0);
 
+  // Menu aberto precisa fechar com Esc e devolver o foco ao botão que o abriu,
+  // senão quem navega por teclado fica preso no fim da página.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setMenuOpen(false);
+      menuButton.current?.focus();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [menuOpen]);
+
   return (
     <>
+      <a className="skipLink" href="#conteudo">
+        Ir para o conteúdo
+      </a>
       <div className="announcement">
         <span>10% de desconto no PIX</span>
       </div>
@@ -33,6 +50,9 @@ export function Header() {
           className="mobileMenuButton iconButton"
           onClick={() => setMenuOpen(open => !open)}
           aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
+          aria-expanded={menuOpen}
+          aria-controls="menu-mobile"
+          ref={menuButton}
         >
           {menuOpen ? <X size={21} /> : <Menu size={21} />}
         </button>
@@ -64,7 +84,7 @@ export function Header() {
           </Link>
         </div>
       </header>
-      <div className={`mobileNav ${menuOpen ? 'isOpen' : ''}`} aria-hidden={!menuOpen}>
+      <div className={`mobileNav ${menuOpen ? 'isOpen' : ''}`} id="menu-mobile" aria-hidden={!menuOpen} inert={!menuOpen}>
         <nav>
           {navigation.map(item => (
             <Link href={item.href} key={item.href} onClick={closeMenu}>
@@ -101,19 +121,19 @@ export function Footer() {
           </a>
         </div>
         <div>
-          <h4>Institucional</h4>
+          <h3>Institucional</h3>
           <Link href="/sobre">A marca</Link>
           <Link href="/lojas">Nossa loja</Link>
           <Link href="/contato">Contato</Link>
         </div>
         <div>
-          <h4>Atendimento</h4>
+          <h3>Atendimento</h3>
           <Link href="/trocas#entrega">Entrega e prazos</Link>
           <Link href="/trocas">Trocas e devoluções</Link>
           <Link href="/contato">Perguntas frequentes</Link>
         </div>
         <div>
-          <h4>Fale conosco</h4>
+          <h3>Fale conosco</h3>
           <p>Seg. a sex. · 9h às 18h</p>
           <a href="https://www.instagram.com/renatafelixstore/" target="_blank" rel="noreferrer">
             @renatafelixstore

@@ -35,7 +35,7 @@ export default async function Home() {
   return (
     <>
       <Header />
-      <main>
+      <main id="conteudo" tabIndex={-1}>
         <section className="hero heroLuxury">
           <Image
             priority

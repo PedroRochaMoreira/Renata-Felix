@@ -23,7 +23,7 @@ export default function Busca() {
   return (
     <>
       <Header />
-      <main className="searchPage">
+      <main id="conteudo" tabIndex={-1} className="searchPage">
         <div className="pageHeading">
           <span className="eyebrow">Encontre sua peça</span>
           <h1 className="serif">O que você procura?</h1>

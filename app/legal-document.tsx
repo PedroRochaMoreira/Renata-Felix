@@ -12,7 +12,7 @@ export function LegalDocument({ eyebrow, title, updatedAt, children }: LegalDocu
   return (
     <>
       <Header />
-      <main className="legalPage">
+      <main id="conteudo" tabIndex={-1} className="legalPage">
         <header className="legalHero">
           <span className="eyebrow">{eyebrow}</span>
           <h1 className="serif">{title}</h1>

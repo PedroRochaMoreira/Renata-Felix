@@ -16,7 +16,7 @@ export default async function ContaLayout({ children }: { children: React.ReactN
   return (
     <>
       <Header />
-      <main className="accountPage">
+      <main id="conteudo" tabIndex={-1} className="accountPage">
         <div className="pageHeading">
           <span className="eyebrow">Área da cliente</span>
           <h1 className="serif">Olá, {user.name.split(' ')[0]}.</h1>

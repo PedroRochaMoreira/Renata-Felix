@@ -24,7 +24,7 @@ export default function RecuperarSenha() {
   return (
     <>
       <Header />
-      <main className="loginPage">
+      <main id="conteudo" tabIndex={-1} className="loginPage">
         <section className="loginVisual">
           <div>
             <span className="eyebrow">Segurança da conta</span>

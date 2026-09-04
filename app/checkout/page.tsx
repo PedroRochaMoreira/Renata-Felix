@@ -124,7 +124,7 @@ export default function Checkout() {
     return (
       <>
         <Header />
-        <main className="checkoutPage loadingPage">Preparando seu checkout...</main>
+        <main id="conteudo" tabIndex={-1} className="checkoutPage loadingPage">Preparando seu checkout...</main>
         <Footer />
       </>
     );

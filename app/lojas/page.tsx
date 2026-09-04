@@ -14,7 +14,7 @@ export default function Lojas() {
   return (
     <>
       <Header />
-      <main className="storesPage">
+      <main id="conteudo" tabIndex={-1} className="storesPage">
         <div className="pageHeading">
           <span className="eyebrow">Visite-nos</span>
           <h1 className="serif">A nossa casa em Luziânia.</h1>

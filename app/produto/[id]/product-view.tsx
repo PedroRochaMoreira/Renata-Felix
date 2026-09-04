@@ -1,9 +1,9 @@
 'use client';
 
-import { BellRing, CheckCircle2, CircleAlert, Heart, Ruler, ShoppingBag } from 'lucide-react';
+import { BellRing, CheckCircle2, CircleAlert, Heart, Ruler, ShoppingBag, X, ZoomIn } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Product, formatPrice } from '../../data';
 import { useStore } from '../../store';
 import { productColors, productColorTone, productSizes } from '../../../lib/product-variants';
@@ -36,6 +36,22 @@ export default function ProductView({ product }: { product: Product }) {
   const [notice, setNotice] = useState('');
   const [alertMessage, setAlertMessage] = useState('');
   const [alertSending, setAlertSending] = useState(false);
+  const [zoom, setZoom] = useState(false);
+
+  // Em moda a textura e o caimento vendem, então a foto precisa ampliar. Esc
+  // fecha e a rolagem da página trava enquanto a ampliação está aberta.
+  useEffect(() => {
+    if (!zoom) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setZoom(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [zoom]);
 
   const variants = product.variants || [];
   // As medidas seguem a ordem dos tamanhos que a peça oferece, e não a ordem em
@@ -98,9 +114,12 @@ export default function ProductView({ product }: { product: Product }) {
   return (
     <div className="productLayout">
       <section className="productGallery">
-        <div className="mainProductImage">
-          <img src={gallery[selectedImage]} alt={product.name} />
-        </div>
+        <button type="button" className="mainProductImage" onClick={() => setZoom(true)} aria-label={`Ampliar a foto de ${product.name}`}>
+          <Image src={gallery[selectedImage]} alt={product.name} fill sizes="(max-width: 900px) 100vw, 55vw" priority />
+          <span className="zoomHint" aria-hidden="true">
+            <ZoomIn size={16} />
+          </span>
+        </button>
         {gallery.length > 1 && (
           <div className="galleryThumbs">
             {gallery.map((source, index) => (
@@ -259,6 +278,43 @@ export default function ProductView({ product }: { product: Product }) {
           </details>
         </div>
       </aside>
+
+      {zoom && (
+        <div
+          className="lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Foto ampliada de ${product.name}`}
+          onClick={() => setZoom(false)}
+        >
+          <button type="button" className="lightboxClose" onClick={() => setZoom(false)} aria-label="Fechar a foto ampliada" autoFocus>
+            <X size={22} />
+          </button>
+          <Image
+            src={gallery[selectedImage]}
+            alt={product.name}
+            width={1200}
+            height={1600}
+            className="lightboxImage"
+            onClick={event => event.stopPropagation()}
+          />
+          {gallery.length > 1 && (
+            <div className="lightboxThumbs" onClick={event => event.stopPropagation()}>
+              {gallery.map((source, index) => (
+                <button
+                  type="button"
+                  key={source}
+                  className={selectedImage === index ? 'active' : ''}
+                  onClick={() => setSelectedImage(index)}
+                  aria-label={`Ver foto ${index + 1}`}
+                >
+                  <Image src={source} alt="" width={64} height={80} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
