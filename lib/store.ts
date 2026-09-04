@@ -435,19 +435,20 @@ export async function createUser(name: string, email: string, password: string) 
 export async function validateUser(email: string, password: string) {
   if (typeof email !== 'string' || typeof password !== 'string') return null;
   const cleanEmail = email.trim().toLowerCase();
-  const user = !sql
-    ? localRead().users.find(item => item.email === cleanEmail) || null
-    : (() => null as User | null)();
-  if (!sql) return validatePassword(user, password);
+  if (!sql) return validatePassword(localRead().users.find(item => item.email === cleanEmail) || null, password);
   await ensureSchema();
   const rows = await database()`SELECT * FROM rf_users WHERE email = ${cleanEmail}`;
   return validatePassword(rows.length ? fromRowUser(rows[0] as Row) : null, password);
 }
 
+/**
+ * Um e-mail inexistente também paga o custo do scrypt. Sem isso a resposta
+ * voltava muito mais rápido e o tempo revelava quais contas existem.
+ */
 function validatePassword(user: User | null, password: string) {
-  if (!user) return null;
+  if (!user) { scryptSync(password, 'renata-felix-timing', 64); return null; }
   const [salt, hash] = user.passwordHash.split(':');
-  if (!salt || !hash) return null;
+  if (!salt || !hash) { scryptSync(password, 'renata-felix-timing', 64); return null; }
   const candidate = scryptSync(password, salt, 64);
   const stored = Buffer.from(hash, 'hex');
   return stored.length === candidate.length && timingSafeEqual(stored, candidate) ? user : null;

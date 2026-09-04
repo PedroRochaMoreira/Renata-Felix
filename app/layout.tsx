@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import CookieConsent from './cookie-consent';
 import { StoreProvider } from './store';
+import { ToastProvider } from './toast';
 import { siteDescription, siteName, siteUrl } from './site';
 
 export const metadata: Metadata = {
@@ -65,7 +66,8 @@ const organizationSchema = {
 export default function Layout({ children }: { children: React.ReactNode }) {
   return <html lang="pt-BR">
     <body>
-      <StoreProvider>{children}</StoreProvider>
+      <a className="skipLink" href="#conteudo">Pular para o conteúdo</a>
+      <StoreProvider><ToastProvider>{children}</ToastProvider></StoreProvider>
       <CookieConsent />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }} />
     </body>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Footer, Header } from '../components';
+import { Footer, Header } from '@/app/components';
 
 export default function VerificarEmail() {
   const [message, setMessage] = useState('Confirmando seu e-mail...');
@@ -18,5 +18,5 @@ export default function VerificarEmail() {
       .catch(() => setMessage('Não foi possível confirmar o e-mail.'));
   }, []);
 
-  return <><Header /><main className="checkoutPage"><div className="empty"><span className="eyebrow">Segurança da conta</span><h1 className="serif">Confirmação de e-mail</h1><p>{message}</p><Link className="button dark" href="/login">Ir para minha conta</Link></div></main><Footer /></>;
+  return <><Header /><main id="conteudo" className="checkoutPage"><div className="empty"><span className="eyebrow">Segurança da conta</span><h1 className="serif">Confirmação de e-mail</h1><p>{message}</p><Link className="button dark" href="/login">Ir para minha conta</Link></div></main><Footer /></>;
 }

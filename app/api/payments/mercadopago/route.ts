@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '../../../../lib/auth';
-import { getCatalog } from '../../../../lib/catalog';
-import { sendOrderStatusEmail } from '../../../../lib/email';
-import { checkRateLimit, requestClientKey } from '../../../../lib/rate-limit';
-import { quoteShipping } from '../../../../lib/shipping';
-import { createOrder, OutOfStockError, setOrderPreference, setOrderStatus } from '../../../../lib/store';
-import { defaultProductColor, productColors, productSizes } from '../../../../lib/product-variants';
+import { requireUser } from '@/lib/auth';
+import { getCatalog } from '@/lib/catalog';
+import { sendOrderStatusEmail } from '@/lib/email';
+import { checkRateLimit, requestClientKey } from '@/lib/rate-limit';
+import { quoteShipping } from '@/lib/shipping';
+import { createOrder, OutOfStockError, setOrderPreference, setOrderStatus } from '@/lib/store';
+import { defaultProductColor, productColors, productSizes } from '@/lib/product-variants';
 
 export const runtime = 'nodejs';
 
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   let orderId: string | undefined;
   try {
     const user = await requireUser();
-    if (!checkRateLimit(`payment:${user.id}:${requestClientKey(req)}`, 8, 10 * 60 * 1000)) {
+    if (!await checkRateLimit(`payment:${user.id}:${requestClientKey(req)}`, 8, 10 * 60 * 1000)) {
       return NextResponse.json({ error: 'Muitas tentativas de pagamento. Aguarde alguns minutos e tente novamente.' }, { status: 429 });
     }
 

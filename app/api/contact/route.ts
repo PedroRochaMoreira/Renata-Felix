@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createContactMessage } from '../../../lib/store';
-import { escapeHtml, sendEmail } from '../../../lib/email';
-import { checkRateLimit, requestClientKey } from '../../../lib/rate-limit';
+import { createContactMessage } from '@/lib/store';
+import { escapeHtml, sendEmail } from '@/lib/email';
+import { checkRateLimit, requestClientKey } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
-    if (!checkRateLimit(`contact:${requestClientKey(req)}`, 5, 60 * 60 * 1000)) {
+    if (!await checkRateLimit(`contact:${requestClientKey(req)}`, 5, 60 * 60 * 1000)) {
       return NextResponse.json({ error: 'Recebemos muitas mensagens deste endereço. Aguarde alguns minutos para tentar novamente.' }, { status: 429 });
     }
     const body = await req.json() as { name?: string; email?: string; subject?: string; message?: string };

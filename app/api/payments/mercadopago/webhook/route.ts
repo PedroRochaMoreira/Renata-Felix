@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
-import { sendOrderStatusEmail, type OrderEmailStatus } from '../../../../../lib/email';
-import { setOrderStatus } from '../../../../../lib/store';
+import { sendOrderStatusEmail, type OrderEmailStatus } from '@/lib/email';
+import { setOrderStatus } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -35,9 +35,18 @@ function signatureParts(signature: string) {
   }));
 }
 
+/**
+ * Sem segredo configurado a rota aceitava qualquer POST. Em produção isso passa
+ * a ser recusado: um webhook não autenticado decide o status de pedidos.
+ * Em desenvolvimento continua liberado para não travar testes locais.
+ */
 function isValidSignature(req: Request, paymentId: string) {
   const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET?.trim();
-  if (!secret) return true;
+  if (!secret) {
+    if (process.env.NODE_ENV !== 'production') return true;
+    console.error('MERCADO_PAGO_WEBHOOK_SECRET não configurado: notificações de pagamento estão sendo recusadas.');
+    return false;
+  }
   const signature = req.headers.get('x-signature');
   const requestId = req.headers.get('x-request-id');
   if (!signature || !requestId) return false;

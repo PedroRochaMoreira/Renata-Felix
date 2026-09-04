@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '../../../../lib/auth';
-import { findCatalogProduct } from '../../../../lib/catalog';
-import { addProduct, setStock, updateProduct } from '../../../../lib/store';
-import { uploadProductImage } from '../../../../lib/uploads';
+import { requireAdmin } from '@/lib/auth';
+import { findCatalogProduct } from '@/lib/catalog';
+import { addProduct, setStock, updateProduct } from '@/lib/store';
+import { uploadProductImage } from '@/lib/uploads';
 
 const maxImages = 8;
 

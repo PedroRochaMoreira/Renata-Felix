@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { deleteSession } from '../../../../lib/store';
+import { deleteSession } from '@/lib/store';
 
 export async function POST() {
   await deleteSession((await cookies()).get('rf_session')?.value);

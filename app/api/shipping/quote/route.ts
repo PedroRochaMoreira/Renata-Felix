@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getCatalog } from '../../../../lib/catalog';
-import { checkRateLimit, requestClientKey } from '../../../../lib/rate-limit';
-import { quoteShipping } from '../../../../lib/shipping';
+import { getCatalog } from '@/lib/catalog';
+import { checkRateLimit, requestClientKey } from '@/lib/rate-limit';
+import { quoteShipping } from '@/lib/shipping';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   try {
-    if (!checkRateLimit(`shipping:${requestClientKey(req)}`, 12, 10 * 60 * 1000)) {
+    if (!await checkRateLimit(`shipping:${requestClientKey(req)}`, 12, 10 * 60 * 1000)) {
       return NextResponse.json({ error: 'Muitas consultas de frete. Aguarde alguns minutos antes de tentar novamente.' }, { status: 429 });
     }
     const { postalCode, items } = await req.json() as { postalCode?: string; items?: { id: string; quantity: number }[] };

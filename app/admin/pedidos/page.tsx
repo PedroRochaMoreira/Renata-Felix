@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, ClipboardList, Clock3, PackageCheck, RefreshCcw, Truck, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Footer, Header } from '../../components';
-import { formatPrice } from '../../data';
+import { Footer, Header } from '@/app/components';
+import { formatPrice } from '@/app/data';
 
 type Status = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 type Order = {
@@ -82,7 +82,7 @@ export default function PedidosAdmin() {
     }
   }
 
-  return <><Header /><main className="ordersAdminPage">
+  return <><Header /><main id="conteudo" className="ordersAdminPage">
     <Link className="textLink" href="/admin"><ArrowLeft size={14} /> Voltar ao painel</Link>
     <div className="ordersAdminHeading"><div><span className="eyebrow"><ClipboardList size={13} /> Operação da loja</span><h1 className="serif">Pedidos</h1><p>Acompanhe pagamentos, clientes e entregas em um só lugar.</p></div><button className="button dark" onClick={() => void load()} disabled={orders === null}><RefreshCcw size={15} /> Atualizar</button></div>
     <div className="orderStats"><button className={filter === 'ALL' ? 'active' : ''} onClick={() => setFilter('ALL')}><span>Todos</span><b>{counts.all}</b></button><button className={filter === 'PENDING' ? 'active' : ''} onClick={() => setFilter('PENDING')}><span>Aguardando</span><b>{counts.pending}</b></button><button className={filter === 'APPROVED' ? 'active' : ''} onClick={() => setFilter('APPROVED')}><span>Aprovados</span><b>{counts.approved}</b></button></div>

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { LegalDocument } from '../legal-document';
+import { LegalDocument } from '@/app/legal-document';
 
 export const metadata: Metadata = {
   title: 'Termos de uso e venda',

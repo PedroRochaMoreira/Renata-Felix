@@ -1,9 +1,8 @@
 node_modules
 .next
-.next.before-move
-.next-verification
-.next-verification-final
+.next-*
 .env
+.env*.local
 data/*.json
 *.log
 coverage

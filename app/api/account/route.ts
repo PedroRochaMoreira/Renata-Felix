@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '../../../lib/auth';
-import { issueEmailVerification, ordersForUser, publicUser, updateUserProfile, type Address } from '../../../lib/store';
-import { escapeHtml, sendEmail } from '../../../lib/email';
+import { requireUser } from '@/lib/auth';
+import { issueEmailVerification, ordersForUser, publicUser, updateUserProfile, type Address } from '@/lib/store';
+import { escapeHtml, sendEmail } from '@/lib/email';
 
 function siteUrl(req: Request) {
   return (process.env.NEXT_PUBLIC_SITE_URL?.trim() || new URL(req.url).origin).replace(/\/$/, '');
