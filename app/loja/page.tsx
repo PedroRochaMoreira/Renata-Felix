@@ -1,12 +1,20 @@
 import Link from 'next/link';
 import { Footer, Header, ProductCard } from '../components';
 import { getCatalog } from '../../lib/catalog';
+import type { Product } from '../data';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Loja({ searchParams }: { searchParams: Promise<{ categoria?: string; filtro?: string }> }) {
   const search = await searchParams;
-  const catalog = await getCatalog();
+
+  let catalog: Product[];
+  try {
+    catalog = await getCatalog();
+  } catch {
+    return <><Header /><main className="catalog"><div className="catalogTitle"><span className="eyebrow">Curadoria Renata Felix</span><h1 className="serif">A vitrine está fora do ar</h1><p>Não conseguimos carregar as peças neste momento. Tente novamente em instantes.</p></div><div className="empty"><p>Se preferir, fale com a nossa equipe e escolhemos a peça com você.</p><Link href="/contato" className="button dark">Falar com a loja</Link></div></main><Footer /></>;
+  }
+
   const categories = Array.from(new Set(catalog.map(product => product.cat))).sort();
   const items = search.filtro === 'novidades' ? catalog.filter(product => product.isNew) : search.categoria ? catalog.filter(product => product.cat === search.categoria) : catalog;
   const title = search.filtro === 'novidades' ? 'Novidades' : search.categoria || 'Todas as peças';

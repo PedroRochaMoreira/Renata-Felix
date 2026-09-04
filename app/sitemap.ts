@@ -1,20 +1,16 @@
 import type { MetadataRoute } from 'next';
-import { products } from './data';
-import { inventory, listProducts, overrides } from '../lib/store';
+import { getCatalog } from '../lib/catalog';
 import { siteUrl } from './site';
 
 export const dynamic = 'force-dynamic';
 
 async function catalogForSitemap() {
   try {
-    const stock = await inventory();
-    const edited = await overrides();
-    return [...await listProducts(), ...products]
-      .filter(product => !stock[product.id]?.deleted)
-      .map(product => ({ ...product, ...edited[product.id] }));
+    return await getCatalog();
   } catch {
-    // A indisponibilidade temporária do banco não deve retirar o sitemap do ar.
-    return products;
+    // A indisponibilidade temporária do banco não deve retirar as páginas
+    // institucionais do sitemap; as peças voltam na próxima geração.
+    return [];
   }
 }
 

@@ -44,6 +44,8 @@ export type Order = {
 };
 
 type User = PublicUser & { passwordHash: string };
+/** `stockReleased` nunca sai daqui: é controle interno da reserva de estoque. */
+type StoredOrder = Order & { stockReleased?: boolean };
 type Session = { token: string; userId: string; expiresAt: string };
 type Db = {
   users: User[];
@@ -52,7 +54,7 @@ type Db = {
   featuredIds: string[];
   inventory: Record<string, { stock: number; deleted?: boolean }>;
   overrides: Record<string, Partial<StoredProduct>>;
-  orders: Order[];
+  orders: StoredOrder[];
   subscribers: { email: string; createdAt: string }[];
   messages: { id: string; name: string; email: string; subject: string; message: string; createdAt: string }[];
   passwordResetTokens: { tokenHash: string; userId: string; expiresAt: string }[];
@@ -189,6 +191,23 @@ function nameIsValid(name: string) { return name.length >= 2 && name.length <= m
 function hashToken(token: string) { return scryptSync(token, 'renata-felix-token', 32).toString('hex'); }
 function productId() { return `custom-${randomBytes(8).toString('hex')}`; }
 
+/** Falta de estoque é erro do pedido, não falha da loja: o checkout responde 400. */
+export class OutOfStockError extends Error {}
+
+const stockUnavailable = 'Uma das peças da sua sacola não está mais disponível na quantidade escolhida.';
+
+/** Violação do CHECK (stock >= 0) ao tentar reservar mais do que existe. */
+function isStockViolation(error: unknown) {
+  const details = error as { code?: unknown; constraint?: unknown };
+  return details?.code === '23514' && String(details?.constraint || '').includes('stock');
+}
+
+function reservationsFor(items: Order['items']) {
+  const quantities = new Map<string, number>();
+  for (const item of items) quantities.set(item.id, (quantities.get(item.id) || 0) + item.quantity);
+  return [...quantities];
+}
+
 export function publicUser(user: User): PublicUser {
   const { passwordHash: _passwordHash, ...safe } = user;
   return safe;
@@ -270,8 +289,9 @@ async function ensureSchema() {
       `CREATE TABLE IF NOT EXISTS rf_inventory (product_id TEXT PRIMARY KEY, stock INTEGER NOT NULL CHECK (stock >= 0), deleted BOOLEAN NOT NULL DEFAULT FALSE, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
       `CREATE TABLE IF NOT EXISTS rf_product_overrides (product_id TEXT PRIMARY KEY, data JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
       `CREATE TABLE IF NOT EXISTS rf_featured (position SMALLINT PRIMARY KEY CHECK (position BETWEEN 0 AND 3), product_id TEXT NOT NULL UNIQUE)`,
-      `CREATE TABLE IF NOT EXISTS rf_orders (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES rf_users(id), status TEXT NOT NULL CHECK (status IN ('PENDING','APPROVED','REJECTED','CANCELLED')), total NUMERIC(12,2) NOT NULL CHECK (total >= 0), payment_preference_id TEXT, payment_id TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
+      `CREATE TABLE IF NOT EXISTS rf_orders (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES rf_users(id), status TEXT NOT NULL CHECK (status IN ('PENDING','APPROVED','REJECTED','CANCELLED')), total NUMERIC(12,2) NOT NULL CHECK (total >= 0), payment_preference_id TEXT, payment_id TEXT, stock_released BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
       `CREATE INDEX IF NOT EXISTS rf_orders_user_idx ON rf_orders (user_id, created_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS rf_orders_pending_idx ON rf_orders (status, created_at)`,
       `CREATE TABLE IF NOT EXISTS rf_order_items (id BIGSERIAL PRIMARY KEY, order_id TEXT NOT NULL REFERENCES rf_orders(id) ON DELETE CASCADE, product_id TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL, color TEXT NOT NULL DEFAULT '', quantity INTEGER NOT NULL CHECK (quantity > 0), unit_price NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0))`,
       `CREATE TABLE IF NOT EXISTS rf_order_shipping (order_id TEXT PRIMARY KEY REFERENCES rf_orders(id) ON DELETE CASCADE, name TEXT NOT NULL, company TEXT NOT NULL, price NUMERIC(12,2) NOT NULL CHECK (price >= 0), delivery_time INTEGER)`,
       `CREATE TABLE IF NOT EXISTS rf_subscribers (email TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
@@ -288,6 +308,11 @@ async function ensureSchema() {
     await db.query(`ALTER TABLE rf_order_items ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT ''`);
     await db.query(`ALTER TABLE rf_order_items DROP CONSTRAINT IF EXISTS rf_order_items_order_id_product_id_size_key`);
     await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS rf_order_items_order_product_size_color_idx ON rf_order_items (order_id, product_id, size, color)`);
+    // Pedidos anteriores nunca reservaram estoque na criação: nascem com a
+    // reserva já devolvida (TRUE) para não inflar o estoque se forem cancelados.
+    // Os novos usam FALSE, definido logo abaixo como padrão da coluna.
+    await db.query(`ALTER TABLE rf_orders ADD COLUMN IF NOT EXISTS stock_released BOOLEAN NOT NULL DEFAULT TRUE`);
+    await db.query(`ALTER TABLE rf_orders ALTER COLUMN stock_released SET DEFAULT FALSE`);
     await migrateLegacyStore();
   })();
   await schemaReady;
@@ -324,9 +349,51 @@ export async function featured() {
   return (rows as Row[]).map(row => readString(row.product_id));
 }
 
+/**
+ * Janela em que o pedido segura a peça. É o dobro da validade do link de
+ * pagamento (ver a rota do Mercado Pago) para que uma reserva nunca seja
+ * devolvida enquanto o cliente ainda consegue pagar.
+ */
+const reservationMinutes = 60;
+const sweepIntervalMs = 5 * 60 * 1000;
+let lastSweep = 0;
+
+/**
+ * Um checkout abandonado nunca gera webhook: sem esta varredura a peça ficaria
+ * reservada para sempre e sumiria da vitrine. Roda junto da leitura de estoque,
+ * no máximo uma vez a cada cinco minutos por instância.
+ */
+async function releaseExpiredReservations() {
+  const now = Date.now();
+  if (now - lastSweep < sweepIntervalMs) return;
+  lastSweep = now;
+
+  if (!sql) {
+    const local = localRead();
+    const deadline = now - reservationMinutes * 60 * 1000;
+    let changed = false;
+    for (const order of local.orders) {
+      if (order.status !== 'PENDING' || order.stockReleased || new Date(order.createdAt).valueOf() > deadline) continue;
+      order.status = 'CANCELLED'; order.stockReleased = true; order.updatedAt = new Date().toISOString();
+      for (const [id, quantity] of reservationsFor(order.items)) moveLocalStock(local, id, quantity);
+      changed = true;
+    }
+    if (changed) localSave(local);
+    return;
+  }
+
+  const db = database();
+  const expired = await db`UPDATE rf_orders SET status = 'CANCELLED', updated_at = NOW()
+    WHERE status = 'PENDING' AND stock_released = FALSE AND created_at < NOW() - (${reservationMinutes}::int * INTERVAL '1 minute')
+    RETURNING id`;
+  for (const row of expired as Row[]) await releaseOrderStock(readString(row.id));
+}
+
 export async function inventory() {
-  if (!sql) return localRead().inventory;
+  // A varredura nunca pode derrubar a vitrine: ela se repete no próximo ciclo.
+  if (!sql) { await releaseExpiredReservations().catch(() => undefined); return localRead().inventory; }
   await ensureSchema();
+  await releaseExpiredReservations().catch(() => undefined);
   const rows = await database()`SELECT product_id, stock, deleted FROM rf_inventory`;
   return Object.fromEntries((rows as Row[]).map(row => [readString(row.product_id), { stock: Math.max(0, Math.floor(asNumber(row.stock))), deleted: Boolean(row.deleted) }]));
 }
@@ -516,17 +583,81 @@ export async function deleteCatalogProduct(id: string) {
   await db`DELETE FROM rf_featured WHERE product_id = ${id}`;
 }
 
+function localStock(local: Db, id: string) {
+  const tracked = local.inventory[id];
+  if (tracked) return tracked.stock;
+  return local.products.find(product => product.id === id)?.stock;
+}
+
+function moveLocalStock(local: Db, id: string, delta: number) {
+  const current = localStock(local, id) ?? 0;
+  const next = Math.max(0, current + delta);
+  local.inventory[id] = { ...(local.inventory[id] || {}), stock: next };
+  const product = local.products.find(item => item.id === id);
+  if (product) product.stock = next;
+}
+
+/**
+ * O estoque é reservado aqui, e não na aprovação do pagamento: entre criar o
+ * pedido e o retorno do Mercado Pago nada segurava a peça, e duas compras
+ * simultâneas da última unidade passavam as duas. A reserva volta ao estoque
+ * em `setOrderStatus` quando o pedido é recusado ou cancelado.
+ */
 export async function createOrder(userId: string, order: Omit<Order, 'id' | 'userId' | 'status' | 'createdAt' | 'updatedAt'>) {
   const now = new Date().toISOString();
   const created: Order = { ...order, id: `rf-${randomBytes(8).toString('hex')}`, userId, status: 'PENDING', createdAt: now, updatedAt: now };
-  if (!sql) { const local = localRead(); local.orders.unshift(created); localSave(local); return created; }
+  const reservations = reservationsFor(created.items);
+
+  if (!sql) {
+    const local = localRead();
+    for (const [id, quantity] of reservations) {
+      const available = localStock(local, id);
+      if (available === undefined || available < quantity) throw new OutOfStockError(stockUnavailable);
+    }
+    for (const [id, quantity] of reservations) moveLocalStock(local, id, -quantity);
+    local.orders.unshift({ ...created, stockReleased: false });
+    localSave(local);
+    return created;
+  }
+
   await ensureSchema(); const db = database();
-  await db.transaction([
-    db`INSERT INTO rf_orders (id, user_id, status, total, payment_preference_id, payment_id, created_at, updated_at) VALUES (${created.id}, ${userId}, 'PENDING', ${created.total}, ${created.paymentPreferenceId || null}, ${created.paymentId || null}, ${now}, ${now})`,
-    ...created.items.map(item => db`INSERT INTO rf_order_items (order_id, product_id, name, size, color, quantity, unit_price) VALUES (${created.id}, ${item.id}, ${item.name}, ${item.size}, ${item.color || ''}, ${item.quantity}, ${item.unitPrice})`),
-    ...(created.shipping ? [db`INSERT INTO rf_order_shipping (order_id, name, company, price, delivery_time) VALUES (${created.id}, ${created.shipping.name}, ${created.shipping.company}, ${created.shipping.price}, ${created.shipping.deliveryTime || null})`] : []),
-  ]);
+  // Uma peça sem cadastro em rf_products não tem estoque para reservar; vendê-la
+  // seria prometer o que a loja não controla.
+  const ids = reservations.map(([id]) => id);
+  const known = await db`SELECT id FROM rf_products WHERE id = ANY(${ids}::text[]) AND deleted = FALSE`;
+  if (known.length !== ids.length) throw new OutOfStockError(stockUnavailable);
+
+  try {
+    await db.transaction([
+      // Espelha o cadastro da peça antes de reservar, para bases antigas em que
+      // rf_inventory ainda não tem linha para o produto.
+      ...ids.map(id => db`INSERT INTO rf_inventory (product_id, stock, deleted) SELECT id, stock, deleted FROM rf_products WHERE id = ${id} ON CONFLICT (product_id) DO NOTHING`),
+      // O CHECK (stock >= 0) desfaz a transação inteira se a peça já acabou.
+      ...reservations.map(([id, quantity]) => db`UPDATE rf_inventory SET stock = stock - ${quantity}, updated_at = NOW() WHERE product_id = ${id}`),
+      ...ids.map(id => db`UPDATE rf_products SET stock = (SELECT stock FROM rf_inventory WHERE product_id = ${id}), updated_at = NOW() WHERE id = ${id}`),
+      db`INSERT INTO rf_orders (id, user_id, status, total, payment_preference_id, payment_id, stock_released, created_at, updated_at) VALUES (${created.id}, ${userId}, 'PENDING', ${created.total}, ${created.paymentPreferenceId || null}, ${created.paymentId || null}, FALSE, ${now}, ${now})`,
+      ...created.items.map(item => db`INSERT INTO rf_order_items (order_id, product_id, name, size, color, quantity, unit_price) VALUES (${created.id}, ${item.id}, ${item.name}, ${item.size}, ${item.color || ''}, ${item.quantity}, ${item.unitPrice})`),
+      ...(created.shipping ? [db`INSERT INTO rf_order_shipping (order_id, name, company, price, delivery_time) VALUES (${created.id}, ${created.shipping.name}, ${created.shipping.company}, ${created.shipping.price}, ${created.shipping.deliveryTime || null})`] : []),
+    ]);
+  } catch (error) {
+    if (isStockViolation(error)) throw new OutOfStockError(stockUnavailable);
+    throw error;
+  }
   return created;
+}
+
+/** Devolve a reserva ao estoque uma única vez, independente de quantas vezes o pedido for encerrado. */
+async function releaseOrderStock(orderId: string) {
+  const db = database();
+  const claimed = await db`UPDATE rf_orders SET stock_released = TRUE WHERE id = ${orderId} AND stock_released = FALSE RETURNING id`;
+  if (!claimed.length) return;
+  const items = await db`SELECT product_id, SUM(quantity)::int AS quantity FROM rf_order_items WHERE order_id = ${orderId} GROUP BY product_id`;
+  for (const item of items as Row[]) {
+    const productId = readString(item.product_id);
+    const quantity = Math.max(1, Math.floor(asNumber(item.quantity, 1)));
+    await db`UPDATE rf_inventory SET stock = stock + ${quantity}, updated_at = NOW() WHERE product_id = ${productId}`;
+    await db`UPDATE rf_products SET stock = (SELECT stock FROM rf_inventory WHERE product_id = ${productId}), updated_at = NOW() WHERE id = ${productId}`;
+  }
 }
 
 export async function setOrderPreference(orderId: string, preferenceId: string) {
@@ -535,24 +666,25 @@ export async function setOrderPreference(orderId: string, preferenceId: string) 
   if (!rows.length) return null; return (await databaseOrders()).find(order => order.id === orderId) || null;
 }
 
+/**
+ * A aprovação não mexe mais no estoque: a peça já saiu na criação do pedido.
+ * Só o encerramento sem venda devolve a reserva.
+ */
 export async function setOrderStatus(orderId: string, status: OrderStatus, paymentId?: string) {
+  const releases = status === 'REJECTED' || status === 'CANCELLED';
   if (!sql) {
     const local = localRead(); const order = local.orders.find(item => item.id === orderId); if (!order) return null;
     if (order.status === 'APPROVED') return order;
     order.status = status; if (paymentId) order.paymentId = paymentId; order.updatedAt = new Date().toISOString();
-    if (status === 'APPROVED') for (const item of order.items) { const current = local.inventory[item.id] || { stock: 10 }; local.inventory[item.id] = { ...current, stock: Math.max(0, current.stock - item.quantity) }; }
+    if (releases && !order.stockReleased) {
+      order.stockReleased = true;
+      for (const [id, quantity] of reservationsFor(order.items)) moveLocalStock(local, id, quantity);
+    }
     localSave(local); return order;
   }
   await ensureSchema(); const db = database();
   const updated = await db`UPDATE rf_orders SET status = ${status}, payment_id = COALESCE(${paymentId || null}, payment_id), updated_at = NOW() WHERE id = ${orderId} AND status <> 'APPROVED' RETURNING id`;
-  if (updated.length && status === 'APPROVED') {
-    const items = await db`SELECT product_id, SUM(quantity)::int AS quantity FROM rf_order_items WHERE order_id = ${orderId} GROUP BY product_id`;
-    for (const item of items as Row[]) {
-      const productId = readString(item.product_id); const quantity = Math.max(1, Math.floor(asNumber(item.quantity, 1)));
-      await db`INSERT INTO rf_inventory (product_id, stock, deleted) VALUES (${productId}, ${Math.max(0, 10 - quantity)}, FALSE) ON CONFLICT (product_id) DO UPDATE SET stock = GREATEST(0, rf_inventory.stock - ${quantity}), updated_at = NOW()`;
-      await db`UPDATE rf_products SET stock = (SELECT stock FROM rf_inventory WHERE product_id = ${productId}), updated_at = NOW() WHERE id = ${productId}`;
-    }
-  }
+  if (updated.length && releases) await releaseOrderStock(orderId);
   return (await databaseOrders()).find(order => order.id === orderId) || null;
 }
 

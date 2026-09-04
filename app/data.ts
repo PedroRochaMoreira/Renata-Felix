@@ -1,5 +1,10 @@
 export type Product={id:string;name:string;price:number;cat:string;color:string;img:string;images?:string[];sizes?:string[];tag?:string;isNew?:boolean;desc:string;stock?:number};
-export const products:Product[]=[
+/**
+ * Vitrine de demonstração usada apenas para preencher a loja antes do
+ * primeiro cadastro real. Só entra no catálogo com RF_SEED_CATALOG=true; ver
+ * lib/catalog.ts.
+ */
+export const seedProducts:Product[]=[
  {id:'vestido-celine',name:'Vestido Celine',price:1290,cat:'Vestidos',color:'Preto',tag:'Novo',isNew:true,img:'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=1000&q=85',desc:'Vestido em crepe de alfaiataria com decote preciso e caimento fluido.'},
  {id:'blazer-alba',name:'Blazer Alba',price:1490,cat:'Alfaiataria',color:'Areia',tag:'Exclusivo',isNew:true,img:'https://images.unsplash.com/photo-1591369822096-ffd140ec948f?auto=format&fit=crop&w=1000&q=85',desc:'Blazer de corte reto em lã fria, acabamento interno impecável.'},
  {id:'calca-lina',name:'Calça Lina',price:890,cat:'Alfaiataria',color:'Chocolate',img:'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=1000&q=85',desc:'Calça de cintura alta e pernas amplas em crepe com toque de seda.'},

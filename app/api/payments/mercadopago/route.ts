@@ -4,7 +4,7 @@ import { getCatalog } from '../../../../lib/catalog';
 import { sendOrderStatusEmail } from '../../../../lib/email';
 import { checkRateLimit, requestClientKey } from '../../../../lib/rate-limit';
 import { quoteShipping } from '../../../../lib/shipping';
-import { createOrder, setOrderPreference, setOrderStatus } from '../../../../lib/store';
+import { createOrder, OutOfStockError, setOrderPreference, setOrderStatus } from '../../../../lib/store';
 import { defaultProductColor, productColors, productSizes } from '../../../../lib/product-variants';
 
 export const runtime = 'nodejs';
@@ -121,6 +121,11 @@ export async function POST(req: Request) {
           pending: `${siteUrl}/checkout?status=pending&order=${order.id}`,
         },
         notification_url: `${siteUrl}/api/payments/mercadopago/webhook`,
+        // O link morre bem antes de a reserva de estoque ser devolvida
+        // (60 min, ver reservationMinutes em lib/store.ts), para que ninguém
+        // pague por uma peça que a loja já recolocou na vitrine.
+        expires: true,
+        expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         auto_return: 'approved',
         payment_methods: { installments: 6 },
       }),
@@ -147,7 +152,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ checkoutUrl: data.init_point || data.sandbox_init_point, orderId: order.id });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Não foi possível conectar ao Mercado Pago.';
-    const status = error instanceof PaymentInputError ? 400 : message === 'Não autorizado' ? 401 : 502;
+    const status = error instanceof PaymentInputError || error instanceof OutOfStockError ? 400 : message === 'Não autorizado' ? 401 : 502;
     if (orderId) await setOrderStatus(orderId, 'CANCELLED').catch(() => undefined);
     return NextResponse.json({ error: status === 502 ? 'Não foi possível iniciar o pagamento no momento. Tente novamente em instantes.' : message }, { status });
   }

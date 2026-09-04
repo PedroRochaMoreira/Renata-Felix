@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { notFound, useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Footer, Header, ProductCard } from '../../components';
-import { Product, formatPrice, products } from '../../data';
+import { formatPrice, type Product } from '../../data';
 import { useStore } from '../../store';
 import { defaultProductColor, productColors, productColorTone, productSizes } from '../../../lib/product-variants';
 
 export default function Produto() {
   const { id } = useParams<{ id: string }>();
-  const [catalog, setCatalog] = useState<Product[]>(products);
+  const [catalog, setCatalog] = useState<Product[]>([]);
   const [ready, setReady] = useState(false);
   const [size, setSize] = useState('');
   const [color, setColor] = useState('');

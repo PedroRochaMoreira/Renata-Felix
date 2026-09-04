@@ -4,19 +4,20 @@ import Link from 'next/link';
 import { Minus, Plus, Trash2, Truck } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Footer, Header } from '../components';
-import { Product, formatPrice, products } from '../data';
+import { formatPrice, type Product } from '../data';
 import { ShippingOption, useStore } from '../store';
 import { productColors, productColorTone, productSizes } from '../../lib/product-variants';
 
 export default function Carrinho() {
   const { cart, remove, setQuantity, setVariant, shipping, setShipping, hydrated } = useStore();
-  const [catalog, setCatalog] = useState<Product[]>(products);
+  const [catalog, setCatalog] = useState<Product[]>([]);
   const [cep, setCep] = useState('');
   const [quotes, setQuotes] = useState<ShippingOption[]>([]);
   const [shippingError, setShippingError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [catalogReady, setCatalogReady] = useState(false);
 
-  useEffect(() => { fetch('/api/catalog').then(response => response.ok ? response.json() : null).then(data => { if (data?.products) setCatalog(data.products); }).catch(() => undefined); }, []);
+  useEffect(() => { fetch('/api/catalog').then(response => response.ok ? response.json() : null).then(data => { if (data?.products) setCatalog(data.products); }).catch(() => undefined).finally(() => setCatalogReady(true)); }, []);
   const lines = useMemo(() => cart.map(line => ({ line, product: catalog.find(product => product.id === line.id) })).filter((item): item is { line: typeof cart[number]; product: Product } => Boolean(item.product)), [cart, catalog]);
   const subtotal = lines.reduce((total, item) => total + item.product.price * item.line.qty, 0);
   const total = subtotal + (shipping?.price || 0);
@@ -41,7 +42,8 @@ export default function Carrinho() {
     }
   }
 
-  if (!hydrated) return <><Header /><main className="cartPage loadingPage">Carregando sua sacola...</main><Footer /></>;
+  // Sem o catálogo carregado não dá para saber se a sacola está mesmo vazia.
+  if (!hydrated || !catalogReady) return <><Header /><main className="cartPage loadingPage">Carregando sua sacola...</main><Footer /></>;
   return <><Header /><main className="cartPage"><div className="pageHeading"><span className="eyebrow">Sua seleção</span><h1 className="serif">Sacola</h1><p>{lines.length ? 'Revise suas escolhas antes de finalizar.' : 'Sua próxima escolha especial começa aqui.'}</p></div>{!lines.length ? <div className="empty"><p>Sua sacola está vazia.</p><Link href="/loja" className="button dark">Explorar a loja</Link></div> : <div className="cartLayout"><div className="cartContent"><div className="cartItems">{lines.map(({ line, product }) => {
     const sizes = productSizes(product);
     const colors = productColors(product);

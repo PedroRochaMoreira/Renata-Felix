@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { CheckCircle2, Clock3, LockKeyhole, XCircle } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Footer, Header } from '../components';
-import { Product, formatPrice, products } from '../data';
+import { formatPrice, type Product } from '../data';
 import { useStore } from '../store';
 import { defaultProductColor } from '../../lib/product-variants';
 
@@ -19,14 +19,15 @@ const paymentCopy: Record<PaymentStatus, { eyebrow: string; title: string; text:
 
 export default function Checkout() {
   const { cart, shipping, hydrated, clearCart } = useStore();
-  const [catalog, setCatalog] = useState<Product[]>(products);
+  const [catalog, setCatalog] = useState<Product[]>([]);
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
+  const [catalogReady, setCatalogReady] = useState(false);
 
   useEffect(() => {
-    fetch('/api/catalog').then(response => response.ok ? response.json() : null).then(data => { if (data?.products) setCatalog(data.products); }).catch(() => undefined);
+    fetch('/api/catalog').then(response => response.ok ? response.json() : null).then(data => { if (data?.products) setCatalog(data.products); }).catch(() => undefined).finally(() => setCatalogReady(true));
     fetch('/api/account').then(response => response.ok ? response.json() : null).then(data => setAccount(data?.user || null)).catch(() => setAccount(null));
     const status = new URLSearchParams(window.location.search).get('status');
     if (status === 'success' || status === 'pending' || status === 'failure') {
@@ -71,7 +72,7 @@ export default function Checkout() {
     }
   }
 
-  if (!hydrated || account === undefined) return <><Header /><main className="checkoutPage loadingPage">Preparando seu checkout...</main><Footer /></>;
+  if (!hydrated || !catalogReady || account === undefined) return <><Header /><main className="checkoutPage loadingPage">Preparando seu checkout...</main><Footer /></>;
   if (paymentStatus) {
     const copy = paymentCopy[paymentStatus];
     const Icon = copy.icon;
