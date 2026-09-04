@@ -18,7 +18,10 @@ function validImages(images: unknown, fallback: string) {
 export async function getCatalog(): Promise<Product[]> {
   try {
     const [stock, edited, customProducts, grades] = await Promise.all([inventory(), overrides(), listProducts(), allVariants()]);
-    return [...customProducts, ...products]
+    // As peças de demonstração existem só para a loja não nascer vazia. Assim
+    // que a primeira peça real é cadastrada, elas somem sozinhas da vitrine.
+    const showcase = customProducts.length ? customProducts : [...customProducts, ...products];
+    return showcase
       .filter(product => !stock[product.id]?.deleted)
       .map(product => {
         const merged = { ...product, ...edited[product.id] } as Product;

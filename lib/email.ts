@@ -82,3 +82,16 @@ export async function sendOrderStatusEmail(input: { to: string; name?: string; o
     html: `<p>Olá, ${escapeHtml(customerName)}.</p><h2>${copy.title}</h2><p>${copy.body}</p><p><strong>Pedido:</strong> ${escapeHtml(input.order.id)}${discount ? `<br/><strong>Desconto PIX:</strong> -${money(input.order.discount || 0)}` : ''}<br/><strong>Total:</strong> ${money(input.order.total)}${safeDelivery ? `<br/><strong>Entrega:</strong> ${safeDelivery}` : ''}</p>${safeLines ? `<p><strong>Itens</strong></p><ul>${safeLines}</ul>` : ''}<p><a href="${escapeHtml(accountUrl)}">Acompanhar pedido</a></p>`,
   });
 }
+
+/** Avisa quem estava esperando que a peça voltou ao estoque. */
+export async function sendBackInStockEmail(input: { to: string; productName: string; size: string; color: string; url: string }) {
+  const recipient = input.to.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(recipient)) return { sent: false, reason: 'invalid-recipient' as const };
+  const variante = `${input.color ? `${input.color} · ` : ''}${input.size}`;
+  return sendEmail({
+    to: recipient,
+    subject: `${input.productName} voltou ao estoque`,
+    text: `Boas notícias. ${input.productName} (${variante}) voltou para a loja.\n\nGaranta a sua: ${input.url}\n\nComo temos poucas peças de cada tamanho, ela pode acabar de novo em breve.`,
+    html: `<p>Boas notícias.</p><h2>${escapeHtml(input.productName)} voltou ao estoque.</h2><p>Tamanho e cor que você pediu para avisar: <strong>${escapeHtml(variante)}</strong>.</p><p><a href="${escapeHtml(input.url)}">Ver a peça na loja</a></p><p>Como temos poucas peças de cada tamanho, ela pode acabar de novo em breve.</p>`,
+  });
+}

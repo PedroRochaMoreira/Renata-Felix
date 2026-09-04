@@ -13,6 +13,16 @@ export type Product = {
   desc: string;
   stock?: number;
   variants?: ProductVariant[];
+  /** Medidas reais da peça, por tamanho. Reduz troca, que é o custo mais alto da moda online. */
+  measurements?: ProductMeasurement[];
+};
+
+export type ProductMeasurement = {
+  size: string;
+  bust?: number;
+  waist?: number;
+  hip?: number;
+  length?: number;
 };
 export const products: Product[] = [
   {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '../../../../lib/auth';
 import { catalogImages, findCatalogProduct, productImages } from '../../../../lib/catalog';
 import { deleteCatalogProduct, setStock, setVariantStock } from '../../../../lib/store';
+import { notifyBackInStock } from '../../../../lib/stock-alerts';
 import { removeUnusedImages } from '../../../../lib/uploads';
 
 export async function PATCH(req: Request) {
@@ -16,11 +17,14 @@ export async function PATCH(req: Request) {
     // entre a grade inteira, que é o ajuste rápido do painel.
     if (typeof size === 'string' && size.trim() && typeof color === 'string' && color.trim()) {
       const variants = await setVariantStock(id, size, color, Number(stock));
-      return NextResponse.json({ variants });
+      const notified = await notifyBackInStock(id);
+      return NextResponse.json({ variants, notified });
     }
 
     const product = await findCatalogProduct(id);
-    return NextResponse.json({ inventory: await setStock(id, Number(stock), product) });
+    const inventory = await setStock(id, Number(stock), product);
+    const notified = await notifyBackInStock(id);
+    return NextResponse.json({ inventory, notified });
   } catch {
     return NextResponse.json({ error: 'Acesso administrativo necessário.' }, { status: 403 });
   }

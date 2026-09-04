@@ -804,6 +804,7 @@ img {
   min-width: 0;
 }
 .mainProductImage {
+  position: relative;
   overflow: hidden;
   background: var(--cream);
   aspect-ratio: 3/4;
@@ -3928,4 +3929,139 @@ html {
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--gold);
+}
+
+.refineBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 18px 26px;
+  margin: 0 0 30px;
+  padding: 17px 0 21px;
+  border-bottom: 1px solid var(--line);
+}
+.refineGroup {
+  display: grid;
+  gap: 8px;
+}
+.refineOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.refineChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  font-size: 11px;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    color 0.2s;
+}
+.refineChip:hover {
+  border-color: var(--gold-light);
+}
+.refineChip.active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.refineColor i {
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(30, 27, 23, 0.16);
+  border-radius: 50%;
+}
+.refineClear {
+  align-self: flex-end;
+  margin-left: auto;
+}
+@media (max-width: 760px) {
+  .refineBar {
+    gap: 14px 18px;
+  }
+  .refineClear {
+    margin-left: 0;
+  }
+}
+
+.stockAlert {
+  margin-top: 13px;
+  padding: 15px 17px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--cream);
+}
+.stockAlertTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 11px;
+  font-size: 12px;
+}
+.stockAlertRow {
+  display: flex;
+  gap: 8px;
+}
+.stockAlertRow input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 13px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--paper);
+}
+.stockAlertRow .button {
+  white-space: nowrap;
+}
+.stockAlertMessage {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+@media (max-width: 520px) {
+  .stockAlertRow {
+    flex-direction: column;
+  }
+}
+
+.measureTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+}
+.measureTable caption {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font:
+    9px 'DM Mono',
+    monospace;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.measureTable th,
+.measureTable td {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 400;
+  text-align: left;
+}
+.measureTable thead th {
+  color: var(--muted);
+  font:
+    9px 'DM Mono',
+    monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.measureTable tbody th {
+  font-weight: 600;
 }

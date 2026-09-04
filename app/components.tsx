@@ -155,7 +155,7 @@ export function ProductCard({ product }: { product: Product }) {
       <Link className="productImage" href={`/produto/${product.id}`}>
         <span className="imageShade" />
         {label && <span className="tag">{label}</span>}
-        <img src={product.img} alt={product.name} loading="lazy" />
+        <Image src={product.img} alt={product.name} fill sizes="(max-width: 760px) 50vw, (max-width: 1180px) 33vw, 25vw" />
       </Link>
       <Link href={`/produto/${product.id}`} className="productMeta">
         <div>

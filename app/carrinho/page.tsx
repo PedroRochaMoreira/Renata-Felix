@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { Minus, Plus, Trash2, Truck } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
@@ -110,7 +111,7 @@ export default function Carrinho() {
                   const stock = variants.length ? variantStock(variants, line.size, selectedColor) : (product.stock ?? 99);
                   return (
                     <article className="cartItem" key={`${line.id}-${line.size}-${lineColor || 'default'}`}>
-                      <img src={product.img} alt={product.name} />
+                      <Image src={product.img} alt={product.name} width={128} height={166} />
                       <div className="cartItemInfo">
                         <span className="eyebrow">{product.cat}</span>
                         <h2 className="serif">{product.name}</h2>

@@ -20,6 +20,41 @@ async function saveUploads(form: FormData) {
   return images;
 }
 
+/**
+ * As medidas chegam como JSON no formulário. Uma linha inválida é descartada em
+ * vez de derrubar a publicação inteira da peça.
+ */
+function parseMeasurements(raw: unknown) {
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('As medidas da peça não puderam ser lidas.');
+  }
+  if (!Array.isArray(parsed)) return [];
+  const number = (value: unknown) => {
+    const candidate = Number(value);
+    return Number.isFinite(candidate) && candidate > 0 && candidate <= 400 ? Math.round(candidate * 10) / 10 : undefined;
+  };
+  return parsed
+    .map(item => {
+      const row = (item || {}) as Record<string, unknown>;
+      return {
+        size: String(row.size || '')
+          .trim()
+          .toUpperCase()
+          .slice(0, 20),
+        bust: number(row.bust),
+        waist: number(row.waist),
+        hip: number(row.hip),
+        length: number(row.length),
+      };
+    })
+    .filter(row => row.size && (row.bust || row.waist || row.hip || row.length))
+    .slice(0, 12);
+}
+
 function productValues(form: FormData, images: string[]) {
   const price = Number(form.get('price'));
   const stock = Number(form.get('stock'));
@@ -39,6 +74,7 @@ function productValues(form: FormData, images: string[]) {
     img: uniqueImages[0] || '',
     sizes: [...new Set(sizes)],
     stock,
+    measurements: parseMeasurements(form.get('measurements')),
   };
   if (
     !product.name ||

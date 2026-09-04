@@ -19,6 +19,7 @@ export type StoredProduct = {
   tag?: string;
   isNew?: boolean;
   stock?: number;
+  measurements?: { size: string; bust?: number; waist?: number; hip?: number; length?: number }[];
 };
 
 export type Address = { street: string; city: string; postalCode: string; complement?: string };
@@ -187,6 +188,24 @@ function fromRowUser(row: Row): User {
   };
 }
 
+/** As medidas gravadas na peça, descartando linhas sem tamanho ou sem número. */
+function asMeasurements(value: unknown): StoredProduct['measurements'] {
+  const parsed = asJson(value);
+  if (!Array.isArray(parsed)) return [];
+  const rows = parsed
+    .map(item => {
+      const row = asRecord(item) || {};
+      const size = normalizeSize(readString(row.size));
+      const number = (field: unknown) => {
+        const parsedNumber = Number(field);
+        return Number.isFinite(parsedNumber) && parsedNumber > 0 ? Math.round(parsedNumber * 10) / 10 : undefined;
+      };
+      return { size, bust: number(row.bust), waist: number(row.waist), hip: number(row.hip), length: number(row.length) };
+    })
+    .filter(row => row.size && (row.bust || row.waist || row.hip || row.length));
+  return rows.filter((row, index) => rows.findIndex(other => other.size === row.size) === index);
+}
+
 function fromRowProduct(row: Row): StoredProduct {
   const images = asStringArray(row.images);
   const img = readString(row.img);
@@ -203,6 +222,7 @@ function fromRowProduct(row: Row): StoredProduct {
     tag: readOptionalString(row.tag),
     isNew: Boolean(row.is_new),
     stock: asNumber(row.stock, 10),
+    measurements: asMeasurements(row.measurements),
   };
 }
 
@@ -385,6 +405,9 @@ async function ensureSchema() {
         `CREATE INDEX IF NOT EXISTS rf_sessions_user_idx ON rf_sessions (user_id)`,
         `CREATE TABLE IF NOT EXISTS rf_products (id TEXT PRIMARY KEY, name TEXT NOT NULL, price NUMERIC(12,2) NOT NULL CHECK (price > 0), category TEXT NOT NULL, color TEXT NOT NULL, img TEXT NOT NULL, images JSONB NOT NULL DEFAULT '[]'::jsonb, sizes JSONB NOT NULL DEFAULT '[]'::jsonb, description TEXT NOT NULL, tag TEXT, is_new BOOLEAN NOT NULL DEFAULT FALSE, stock INTEGER NOT NULL DEFAULT 10 CHECK (stock >= 0), deleted BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
         `CREATE TABLE IF NOT EXISTS rf_inventory (product_id TEXT PRIMARY KEY, stock INTEGER NOT NULL CHECK (stock >= 0), deleted BOOLEAN NOT NULL DEFAULT FALSE, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
+        `CREATE TABLE IF NOT EXISTS rf_stock_alerts (id TEXT PRIMARY KEY, product_id TEXT NOT NULL, size TEXT NOT NULL DEFAULT '', color TEXT NOT NULL DEFAULT '', email TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), notified_at TIMESTAMPTZ)`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS rf_stock_alerts_unique_idx ON rf_stock_alerts (product_id, size, color, email)`,
+        `CREATE INDEX IF NOT EXISTS rf_stock_alerts_pending_idx ON rf_stock_alerts (product_id) WHERE notified_at IS NULL`,
         `CREATE TABLE IF NOT EXISTS rf_rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at TIMESTAMPTZ NOT NULL)`,
         `CREATE INDEX IF NOT EXISTS rf_rate_limits_reset_idx ON rf_rate_limits (reset_at)`,
         `CREATE TABLE IF NOT EXISTS rf_variants (product_id TEXT NOT NULL, size TEXT NOT NULL, color TEXT NOT NULL, stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (product_id, size, color))`,
@@ -414,6 +437,7 @@ async function ensureSchema() {
       // pagar a mesma última peça na janela entre o pedido e a confirmação.
       await db.query(`ALTER TABLE rf_variants ADD COLUMN IF NOT EXISTS reserved INTEGER NOT NULL DEFAULT 0 CHECK (reserved >= 0)`);
       await db.query(`ALTER TABLE rf_orders ADD COLUMN IF NOT EXISTS stock_settled BOOLEAN NOT NULL DEFAULT FALSE`);
+      await db.query(`ALTER TABLE rf_products ADD COLUMN IF NOT EXISTS measurements JSONB NOT NULL DEFAULT '[]'::jsonb`);
       await db.query(`ALTER TABLE rf_order_items DROP CONSTRAINT IF EXISTS rf_order_items_order_id_product_id_size_key`);
       await db.query(
         `CREATE UNIQUE INDEX IF NOT EXISTS rf_order_items_order_product_size_color_idx ON rf_order_items (order_id, product_id, size, color)`,
@@ -680,6 +704,48 @@ async function resolveRole(email: string, isFirstAccount: () => Promise<boolean>
   return 'ADMIN';
 }
 
+export type StockAlert = { id: string; productId: string; size: string; color: string; email: string };
+
+/**
+ * Guarda o pedido de aviso de uma cliente para quando a peça voltar. Repetir o
+ * mesmo e-mail para a mesma combinação não cria uma segunda inscrição.
+ */
+export async function createStockAlert(productId: string, size: string, color: string, email: string) {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!emailIsValid(cleanEmail)) throw new Error('Informe um e-mail válido.');
+  const cleanSize = normalizeSize(size);
+  const cleanColor = normalizeColor(color);
+  if (!productId || !cleanSize) throw new Error('Escolha o tamanho que você procura.');
+  if (!sql) return;
+  await ensureSchema();
+  await database()`INSERT INTO rf_stock_alerts (id, product_id, size, color, email)
+    VALUES (${randomBytes(8).toString('hex')}, ${productId}, ${cleanSize}, ${cleanColor}, ${cleanEmail})
+    ON CONFLICT (product_id, size, color, email) DO UPDATE SET notified_at = NULL, created_at = NOW()`;
+}
+
+/** As inscrições de uma peça cuja combinação voltou a ter estoque. */
+export async function pendingStockAlerts(productId: string): Promise<StockAlert[]> {
+  if (!sql) return [];
+  await ensureSchema();
+  const rows = await database()`SELECT a.id, a.product_id, a.size, a.color, a.email
+    FROM rf_stock_alerts a
+    JOIN rf_variants v ON v.product_id = a.product_id AND v.size = a.size AND v.color = a.color
+    WHERE a.product_id = ${productId} AND a.notified_at IS NULL AND v.stock - v.reserved > 0`;
+  return (rows as Row[]).map(row => ({
+    id: readString(row.id),
+    productId: readString(row.product_id),
+    size: readString(row.size),
+    color: readString(row.color),
+    email: readString(row.email),
+  }));
+}
+
+export async function markStockAlertsNotified(ids: string[]) {
+  if (!sql || !ids.length) return;
+  const db = database();
+  for (const id of ids) await db`UPDATE rf_stock_alerts SET notified_at = NOW() WHERE id = ${id}`;
+}
+
 export async function createUser(name: string, email: string, password: string) {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
@@ -850,7 +916,7 @@ export async function addProduct(product: Omit<StoredProduct, 'id'>) {
   }
   await ensureSchema();
   const db = database();
-  await db`INSERT INTO rf_products (id, name, price, category, color, img, images, sizes, description, tag, is_new, stock, deleted) VALUES (${item.id}, ${item.name}, ${item.price}, ${item.cat}, ${item.color}, ${item.img}, ${JSON.stringify(item.images || [item.img])}::jsonb, ${JSON.stringify(item.sizes || [])}::jsonb, ${item.desc}, ${item.tag || null}, ${Boolean(item.isNew)}, ${item.stock}, FALSE)`;
+  await db`INSERT INTO rf_products (id, name, price, category, color, img, images, sizes, description, tag, is_new, stock, deleted, measurements) VALUES (${item.id}, ${item.name}, ${item.price}, ${item.cat}, ${item.color}, ${item.img}, ${JSON.stringify(item.images || [item.img])}::jsonb, ${JSON.stringify(item.sizes || [])}::jsonb, ${item.desc}, ${item.tag || null}, ${Boolean(item.isNew)}, ${item.stock}, FALSE, ${JSON.stringify(item.measurements || [])}::jsonb)`;
   await db`INSERT INTO rf_inventory (product_id, stock, deleted) VALUES (${item.id}, ${item.stock}, FALSE) ON CONFLICT (product_id) DO UPDATE SET stock = EXCLUDED.stock, deleted = FALSE, updated_at = NOW()`;
   await saveProductVariants(item.id, buildVariants(item, item.stock ?? 0));
   return item;
@@ -890,7 +956,7 @@ export async function updateProduct(id: string, changes: Partial<Omit<StoredProd
   if (rows.length) {
     const current = fromRowProduct(rows[0] as Row);
     const next = { ...current, ...changes };
-    await db`UPDATE rf_products SET name = ${next.name}, price = ${next.price}, category = ${next.cat}, color = ${next.color}, img = ${next.img}, images = ${JSON.stringify(next.images || [next.img])}::jsonb, sizes = ${JSON.stringify(next.sizes || [])}::jsonb, description = ${next.desc}, tag = ${next.tag || null}, is_new = ${Boolean(next.isNew)}, stock = ${Math.max(0, Math.floor(next.stock ?? current.stock ?? 10))}, updated_at = NOW() WHERE id = ${id}`;
+    await db`UPDATE rf_products SET name = ${next.name}, price = ${next.price}, category = ${next.cat}, color = ${next.color}, img = ${next.img}, images = ${JSON.stringify(next.images || [next.img])}::jsonb, sizes = ${JSON.stringify(next.sizes || [])}::jsonb, description = ${next.desc}, tag = ${next.tag || null}, is_new = ${Boolean(next.isNew)}, stock = ${Math.max(0, Math.floor(next.stock ?? current.stock ?? 10))}, measurements = ${JSON.stringify(next.measurements || [])}::jsonb, updated_at = NOW() WHERE id = ${id}`;
     await syncVariantsWithProduct(id, next);
     return next;
   }

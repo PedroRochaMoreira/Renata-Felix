@@ -1,8 +1,9 @@
 'use client';
 
-import { CheckCircle2, CircleAlert, Heart, Ruler, ShoppingBag } from 'lucide-react';
+import { BellRing, CheckCircle2, CircleAlert, Heart, Ruler, ShoppingBag } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { Product, formatPrice } from '../../data';
 import { useStore } from '../../store';
 import { productColors, productColorTone, productSizes } from '../../../lib/product-variants';
@@ -10,6 +11,13 @@ import { colorsInStock, preferredColor, variantStock } from '../../../lib/varian
 import { pixDiscountLabel, pixUnitPrice } from '../../../lib/pricing';
 
 const addedMessage = 'Peça adicionada à sua sacola.';
+
+const measureColumns = [
+  { key: 'bust', label: 'Busto' },
+  { key: 'waist', label: 'Cintura' },
+  { key: 'hip', label: 'Quadril' },
+  { key: 'length', label: 'Compr.' },
+] as const;
 
 /**
  * Só a escolha de tamanho, cor e quantidade precisa rodar no navegador. O
@@ -26,8 +34,15 @@ export default function ProductView({ product }: { product: Product }) {
   const [selectedImage, setSelectedImage] = useState(0);
   const [guide, setGuide] = useState(false);
   const [notice, setNotice] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertSending, setAlertSending] = useState(false);
 
   const variants = product.variants || [];
+  // As medidas seguem a ordem dos tamanhos que a peça oferece, e não a ordem em
+  // que foram cadastradas.
+  const measurements = (product.measurements || [])
+    .slice()
+    .sort((a, b) => productSizes(product).indexOf(a.size) - productSizes(product).indexOf(b.size));
   const gallery = product.images?.length ? product.images : [product.img];
   const soldOut = product.stock === 0;
   const sizes = productSizes(product);
@@ -52,6 +67,32 @@ export default function ProductView({ product }: { product: Product }) {
     window.setTimeout(() => setNotice(''), 4800);
   };
 
+  // Quando a combinação escolhida está esgotada, a peça deixa de ser uma venda
+  // perdida e vira uma lista de espera.
+  const waitingList = Boolean(size) && availableForVariant === 0;
+
+  async function requestAlert(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const email = String(new FormData(event.currentTarget).get('email') || '').trim();
+    setAlertSending(true);
+    setAlertMessage('');
+    try {
+      const response = await fetch('/api/stock-alert', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: product.id, size, color: selectedColor, email }),
+      });
+      const data = await response.json();
+      setAlertMessage(
+        response.ok ? 'Pronto. Avisaremos você assim que esta peça voltar.' : data.error || 'Não foi possível registrar o aviso.',
+      );
+    } catch {
+      setAlertMessage('Não foi possível conectar ao servidor. Tente novamente.');
+    } finally {
+      setAlertSending(false);
+    }
+  }
+
   const addedToBag = notice === addedMessage;
 
   return (
@@ -69,7 +110,7 @@ export default function ProductView({ product }: { product: Product }) {
                 onClick={() => setSelectedImage(index)}
                 key={source}
               >
-                <img src={source} alt={`Ver foto ${index + 1} de ${product.name}`} />
+                <Image src={source} alt={`Ver foto ${index + 1} de ${product.name}`} width={90} height={112} />
               </button>
             ))}
           </div>
@@ -139,18 +180,64 @@ export default function ProductView({ product }: { product: Product }) {
         <button className="measureGuide" type="button" onClick={() => setGuide(open => !open)}>
           <Ruler size={15} /> Guia de medidas <span>{guide ? '−' : '+'}</span>
         </button>
-        {guide && (
-          <div className="guide">
-            PP: 34–36 · P: 38 · M: 40 · G: 42 · GG: 44–46.
-            <br />
-            As medidas são aproximadas e tomadas sobre o corpo.
-          </div>
-        )}
+        {guide &&
+          (measurements.length ? (
+            <div className="guide">
+              <table className="measureTable">
+                <caption>Medidas desta peça, em centímetros.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Tam.</th>
+                    {measureColumns.map(column => (
+                      <th scope="col" key={column.key}>
+                        {column.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {measurements.map(row => (
+                    <tr key={row.size}>
+                      <th scope="row">{row.size}</th>
+                      {measureColumns.map(column => (
+                        <td key={column.key}>{row[column.key] ? `${row[column.key]} cm` : '—'}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p>Medidas da peça, tomadas com ela plana. Uma variação de até 2 cm é normal no acabamento artesanal.</p>
+            </div>
+          ) : (
+            <div className="guide">
+              PP: 34–36 · P: 38 · M: 40 · G: 42 · GG: 44–46.
+              <br />
+              Esta peça ainda não tem medidas próprias cadastradas, então a referência acima é a do manequim.
+            </div>
+          ))}
 
         <button disabled={soldOut} className="button dark fullButton addToBag" onClick={buy}>
           <ShoppingBag size={16} />
           {soldOut ? 'Peça esgotada' : 'Adicionar à sacola'}
         </button>
+        {waitingList && (
+          <form className="stockAlert" onSubmit={requestAlert}>
+            <p className="stockAlertTitle">
+              <BellRing size={15} /> Avise-me quando o {size} voltar{colors.length > 1 ? ` na cor ${selectedColor}` : ''}
+            </p>
+            <div className="stockAlertRow">
+              <input name="email" type="email" required placeholder="Seu e-mail" aria-label="Seu e-mail para o aviso" />
+              <button className="button dark" disabled={alertSending}>
+                {alertSending ? 'Enviando...' : 'Quero ser avisada'}
+              </button>
+            </div>
+            {alertMessage && (
+              <p className="stockAlertMessage" role="status">
+                {alertMessage}
+              </p>
+            )}
+          </form>
+        )}
         {notice && (
           <div className={`bagConfirmation ${addedToBag ? 'isSuccess' : 'isWarning'}`} role="status" aria-live="polite">
             {addedToBag ? <CheckCircle2 size={20} /> : <CircleAlert size={20} />}

@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   try {
-    if (!await checkRateLimit(`shipping:${requestClientKey(req)}`, 12, 10 * 60 * 1000)) {
+    if (!(await checkRateLimit(`shipping:${requestClientKey(req)}`, 12, 10 * 60 * 1000))) {
       return NextResponse.json({ error: 'Muitas consultas de frete. Aguarde alguns minutos antes de tentar novamente.' }, { status: 429 });
     }
     const { postalCode, items } = (await req.json()) as {
