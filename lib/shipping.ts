@@ -1,3 +1,19 @@
+/**
+ * Falha de configuração da loja ou do provedor. A cliente vê apenas a mensagem
+ * genérica; o motivo real vai para o log do servidor, nunca para a tela — nome
+ * de variável de ambiente não é assunto de quem está comprando.
+ */
+export class ShippingUnavailableError extends Error {
+  readonly detail: string;
+  constructor(detail: string) {
+    super('O cálculo de frete está indisponível no momento. Fale com a loja para combinar a entrega.');
+    this.detail = detail;
+  }
+}
+
+/** Problema que a própria cliente resolve: CEP inválido, sacola vazia. */
+export class ShippingInputError extends Error {}
+
 export type ShipmentItem = { id: string; price: number; quantity: number };
 export type ShippingQuote = { id: string | number; name: string; company: string; price: number; deliveryTime: number };
 type RawQuote = { id: string | number; name?: string; company?: { name?: string }; custom_price?: unknown; price?: unknown; custom_delivery_time?: unknown; delivery_time?: unknown; error?: unknown };
@@ -12,11 +28,11 @@ export async function quoteShipping(postalCode: string, items: ShipmentItem[]): 
   const token = process.env.MELHOR_ENVIO_TOKEN?.trim();
   const origin = String(process.env.MELHOR_ENVIO_ORIGIN_CEP || '').replace(/\D/g, '');
   const destination = String(postalCode || '').replace(/\D/g, '');
-  if (!token || !origin) throw new Error('Configure MELHOR_ENVIO_TOKEN e MELHOR_ENVIO_ORIGIN_CEP no .env para ativar o cálculo de frete.');
-  if (origin.length !== 8) throw new Error('O CEP de origem da loja está inválido.');
-  if (destination.length !== 8) throw new Error('Informe um CEP válido com 8 dígitos.');
-  if (!items.length) throw new Error('A sacola está vazia.');
-  if (items.some(item => !item.id || !Number.isFinite(item.price) || item.price <= 0 || !Number.isInteger(item.quantity) || item.quantity < 1)) throw new Error('Há itens inválidos para calcular o frete.');
+  if (!token || !origin) throw new ShippingUnavailableError('MELHOR_ENVIO_TOKEN e/ou MELHOR_ENVIO_ORIGIN_CEP não configurados.');
+  if (origin.length !== 8) throw new ShippingUnavailableError(`MELHOR_ENVIO_ORIGIN_CEP inválido: esperados 8 dígitos, recebidos ${origin.length}.`);
+  if (destination.length !== 8) throw new ShippingInputError('Informe um CEP válido com 8 dígitos.');
+  if (!items.length) throw new ShippingInputError('A sacola está vazia.');
+  if (items.some(item => !item.id || !Number.isFinite(item.price) || item.price <= 0 || !Number.isInteger(item.quantity) || item.quantity < 1)) throw new ShippingInputError('Há itens inválidos para calcular o frete.');
 
   const base = process.env.MELHOR_ENVIO_SANDBOX === 'true' ? 'https://sandbox.melhorenvio.com.br' : 'https://www.melhorenvio.com.br';
   const response = await fetch(`${base}/api/v2/me/shipment/calculate`, {
@@ -35,7 +51,7 @@ export async function quoteShipping(postalCode: string, items: ShipmentItem[]): 
     cache: 'no-store',
   });
   const data = await response.json().catch(() => ({})) as { message?: string } | unknown[];
-  if (!response.ok) throw new Error((data as { message?: string }).message || 'Não foi possível calcular o frete.');
+  if (!response.ok) throw new ShippingUnavailableError(`Melhor Envio respondeu ${response.status}: ${(data as { message?: string }).message || 'sem detalhe'}`);
   return (Array.isArray(data) ? data : [])
     .filter(isRawQuote)
     .map(quote => ({

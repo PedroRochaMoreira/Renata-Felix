@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { getCatalog } from '@/lib/catalog';
 import { sendOrderStatusEmail } from '@/lib/email';
 import { checkRateLimit, requestClientKey } from '@/lib/rate-limit';
-import { quoteShipping } from '@/lib/shipping';
+import { quoteShipping, ShippingInputError } from '@/lib/shipping';
 import { createOrder, OutOfStockError, setOrderPreference, setOrderStatus } from '@/lib/store';
 import { defaultProductColor, productColors, productSizes } from '@/lib/product-variants';
 
@@ -152,7 +152,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ checkoutUrl: data.init_point || data.sandbox_init_point, orderId: order.id });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Não foi possível conectar ao Mercado Pago.';
-    const status = error instanceof PaymentInputError || error instanceof OutOfStockError ? 400 : message === 'Não autorizado' ? 401 : 502;
+    const acionavel = error instanceof PaymentInputError || error instanceof OutOfStockError || error instanceof ShippingInputError;
+    const status = acionavel ? 400 : message === 'Não autorizado' ? 401 : 502;
     if (orderId) await setOrderStatus(orderId, 'CANCELLED').catch(() => undefined);
     return NextResponse.json({ error: status === 502 ? 'Não foi possível iniciar o pagamento no momento. Tente novamente em instantes.' : message }, { status });
   }
